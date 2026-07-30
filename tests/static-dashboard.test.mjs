@@ -39,3 +39,11 @@ test("filters, quality and campaign details preserve the dashboard safeguards", 
   assert.match(source, /3 dias negativos/);
   assert.match(source, /event\.key==="Escape"/);
 });
+
+test("the action panel reserves space for impact without overlapping campaign names", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /\.alert \{[^}]*grid-template-columns:max-content minmax\(0,1fr\) 58px/);
+  assert.match(source, /\.alert > span:nth-child\(2\) \{ min-width:0; \}/);
+  assert.match(source, /\.alert-title \{ display:block; overflow-wrap:anywhere/);
+  assert.match(source, /\.impact \{ width:58px;/);
+});
