@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render() {
@@ -17,4 +18,13 @@ test("server-renders the DASHFULL application shell", async () => {
   assert.match(html, /DASHFULL/);
   assert.match(html, /Preparando os dados da DASHFULL/);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/i);
+});
+
+test("both dashboard clients explicitly request message campaigns", async () => {
+  const [appClient, publicPage] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(appClient, /v_daily\?typ=eq\.msgs/);
+  assert.match(publicPage, /v_daily\?typ=eq\.msgs/);
 });

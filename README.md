@@ -1,7 +1,7 @@
 # DASHFULL
 
-Dashboard público de performance diária conectado ao projeto Supabase
-`akffepitbqqqgldxvtlf`.
+Dashboard público de performance diária das campanhas de mensagens, conectado ao
+projeto Supabase `akffepitbqqqgldxvtlf`.
 
 ## O que exibe
 
@@ -12,8 +12,9 @@ Dashboard público de performance diária conectado ao projeto Supabase
 - detalhe diário de cada campanha;
 - indicação de dados parciais.
 
-Os dados são lidos diretamente do Supabase. As atualizações diárias devem ser
-registradas na base antes de aparecerem no painel.
+Os dados são lidos diretamente do Supabase e são restritos às campanhas de
+mensagens. As atualizações diárias devem ser registradas na base antes de
+aparecerem no painel.
 
 ## Publicação
 

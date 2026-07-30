@@ -58,7 +58,7 @@ function useFullHistory() {
   const [error, setError] = useState(false);
   const reload = useCallback(async () => {
     setLoading(true); setError(false);
-    try { setRows(await request<DailyRow[]>(`v_daily?select=${DAILY_FIELDS}&order=di.asc`)); }
+    try { setRows(await request<DailyRow[]>(`v_daily?typ=eq.msgs&select=${DAILY_FIELDS}&order=di.asc`)); }
     catch { setError(true); }
     finally { setLoading(false); }
   }, []);
@@ -198,7 +198,7 @@ export function DashboardClient() {
         rpc<RankingRow[]>("campaign_ranking", { di_ini: rangeStart, di_fim: rangeEnd, min_spend: 150, roi_meta: 20, exclude_prefix: null }),
         rpc<Alert[]>("operational_alerts", { di_ini: rangeStart, di_fim: rangeEnd, min_spend: 150, roi_meta: 20 }),
         rpc<Quality>("data_quality_status", { di_ini: rangeStart, di_fim: rangeEnd }),
-        request<DailyRow[]>(`v_daily?di=gte.${rangeStart}&di=lte.${rangeEnd}&select=${DAILY_FIELDS}`),
+        request<DailyRow[]>(`v_daily?typ=eq.msgs&di=gte.${rangeStart}&di=lte.${rangeEnd}&select=${DAILY_FIELDS}`),
       ]);
       if (requestId === latestDashboardRequest.current) setData({ summary, ranking, alerts, quality, daily });
     } catch { if (requestId === latestDashboardRequest.current) setError(true); } finally { if (requestId === latestDashboardRequest.current) setLoading(false); }
