@@ -28,3 +28,16 @@ test("both dashboard clients explicitly request message campaigns", async () => 
   assert.match(appClient, /v_daily\?typ=eq\.msgs/);
   assert.match(publicPage, /v_daily\?typ=eq\.msgs/);
 });
+
+test("dashboard derives filtered metrics and the negative-ROI alert from daily message rows", async () => {
+  const [appClient, publicPage] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+  ]);
+  for (const source of [appClient, publicPage]) {
+    assert.match(source, /deriveDashboard/);
+    assert.match(source, /dailyRoi/);
+    assert.match(source, /3 dias negativos/);
+    assert.doesNotMatch(source, /dashboard_summary|campaign_ranking|operational_alerts|data_quality_status/);
+  }
+});

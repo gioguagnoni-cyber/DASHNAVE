@@ -128,7 +128,7 @@ h1 { margin: 0; font-size: clamp(23px, 3vw, 32px); letter-spacing: -.04em; line-
 .alert-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px 17px; border-bottom: 1px solid var(--line); }
 .alert-row:last-child { border-bottom: 0; }
 .alert-type { border-radius: 999px; padding: 4px 7px; background: var(--blue-soft); color: var(--blue); font-size: 9px; font-weight: 850; text-transform: uppercase; }
-.alert-type.pausar { color: var(--red); background: var(--red-soft); }
+.alert-type.pausar, .alert-type.alerta { color: var(--red); background: var(--red-soft); }
 .alert-type.escalar { color: var(--green); background: var(--green-soft); }
 .alert-campaign { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 750; }
 .alert-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); font-size: 10px; margin-top: 3px; }
