@@ -28,7 +28,7 @@ function classForValue(value: unknown) { const number = numeric(value); return n
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
-    headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`, "Content-Type": "application/json", ...init?.headers },
+    headers: { apikey: SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json", ...init?.headers },
   });
   if (!response.ok) throw new Error("Os dados não puderam ser carregados agora.");
   return response.json() as Promise<T>;

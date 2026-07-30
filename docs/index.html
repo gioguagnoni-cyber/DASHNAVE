@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="DASHFULL — performance diária com decisões claras." />
+    <meta name="theme-color" content="#f4f7fb" />
+    <title>DASHFULL · Performance diária</title>
+    <style>
+      :root { --ink:#162238; --muted:#64748b; --line:#e3eaf3; --blue:#245dd8; --blue-soft:#eaf0ff; --green:#078a63; --green-soft:#e4f7ef; --red:#d04457; --red-soft:#fff0f2; --amber:#9a6200; --amber-soft:#fff7df; --surface:#fff; --page:#f4f7fb; }
+      * { box-sizing:border-box; }
+      body { margin:0; background:var(--page); color:var(--ink); font:14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      button, input { font:inherit; }
+      button { cursor:pointer; }
+      .shell { max-width:1440px; margin:auto; padding:28px clamp(16px,4vw,56px) 46px; }
+      .topbar { display:flex; align-items:center; justify-content:space-between; gap:18px; margin:0 0 26px; }
+      .brand { display:flex; align-items:center; gap:13px; }
+      .mark { display:grid; place-items:center; width:44px; height:44px; border-radius:14px; background:linear-gradient(145deg,#1947ad,#2e71f0); color:#fff; font-weight:800; letter-spacing:-.08em; box-shadow:0 8px 18px #2e71f040; }
+      .eyebrow { margin:0 0 2px; color:var(--blue); font-size:10px; font-weight:800; letter-spacing:.13em; }
+      h1 { margin:0; font-size:22px; line-height:1; letter-spacing:-.045em; }
+      .subtitle { margin:5px 0 0; color:var(--muted); font-size:12px; }
+      .public { border:1px solid #cde8da; border-radius:999px; padding:6px 10px; background:#f2fcf7; color:#087854; font-size:12px; font-weight:700; white-space:nowrap; }
+      .filters, .panel, .metric, .message { background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:0 5px 17px #20345408; }
+      .filters { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:13px 15px; }
+      .filter-label { color:var(--muted); font-size:12px; font-weight:750; }
+      .ranges { display:flex; flex-wrap:wrap; gap:7px; }
+      .ranges button { border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:#fff; color:#526277; font-size:12px; font-weight:700; }
+      .ranges button.active { border-color:var(--blue); background:var(--blue); color:#fff; }
+      .dates { display:flex; gap:9px; margin-left:auto; }
+      .dates label { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; font-weight:700; }
+      .dates input { min-width:124px; border:1px solid var(--line); border-radius:8px; padding:5px 7px; color:var(--ink); background:#fff; }
+      .context { display:flex; gap:8px; align-items:center; margin:13px 2px 16px; color:var(--muted); font-size:12px; }
+      .context strong { color:#40516a; }
+      .separator { color:#bdc8d5; }
+      .notice { display:flex; gap:9px; align-items:flex-start; margin:0 0 16px; padding:11px 13px; border:1px solid #f1da93; border-radius:12px; background:var(--amber-soft); color:#775118; font-size:12px; }
+      .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; margin-bottom:13px; }
+      .metric { min-height:131px; padding:17px; }
+      .metric-label { color:var(--muted); font-size:12px; font-weight:750; }
+      .metric-value { margin:10px 0 9px; font-size:clamp(21px,2.2vw,29px); font-weight:800; letter-spacing:-.055em; }
+      .metric-foot { color:#7a899c; font-size:11px; }
+      .positive { color:var(--green)!important; }
+      .negative { color:var(--red)!important; }
+      .content { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(330px,1fr); gap:13px; margin-bottom:13px; }
+      .panel { min-width:0; padding:18px; }
+      .panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:11px; }
+      h2 { margin:0; font-size:15px; letter-spacing:-.025em; }
+      .panel-head p { margin:3px 0 0; color:var(--muted); font-size:11px; }
+      .legend { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; color:var(--muted); font-size:10px; }
+      .legend span { display:flex; align-items:center; gap:4px; }
+      .legend i { width:7px; height:7px; border-radius:50%; }
+      .chart { min-height:250px; display:grid; place-items:center; overflow:hidden; }
+      .chart svg { display:block; width:100%; height:auto; max-height:270px; }
+      .axis { fill:#8390a3; font-size:10px; }
+      .alerts { display:grid; }
+      .alert { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:9px; align-items:start; padding:11px 0; border-top:1px solid #edf1f5; }
+      .alert:first-child { border-top:0; padding-top:2px; }
+      .tag { border-radius:999px; padding:3px 6px; background:#eff3f8; color:#65758a; font-size:9px; font-weight:800; text-transform:uppercase; }
+      .tag.pausar, .tag.alerta { background:var(--red-soft); color:var(--red); }
+      .tag.escalar, .tag.oportunidade { background:var(--green-soft); color:var(--green); }
+      .alert-title { overflow:hidden; color:#33445d; font-size:12px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+      .alert-detail { margin-top:2px; color:var(--muted); font-size:11px; }
+      .impact { font-size:12px; font-weight:800; white-space:nowrap; }
+      .table-panel { padding-bottom:5px; }
+      .table-tools input { width:min(270px,42vw); border:1px solid var(--line); border-radius:8px; padding:7px 9px; outline-color:var(--blue); }
+      .scroller { overflow:auto; margin:0 -18px; padding:0 18px; }
+      table { width:100%; min-width:790px; border-collapse:collapse; text-align:left; }
+      th { padding:10px 8px; border-bottom:1px solid var(--line); color:#8390a2; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+      td { padding:11px 8px; border-bottom:1px solid #edf1f5; color:#45566d; font-size:12px; white-space:nowrap; }
+      tbody tr:last-child td { border-bottom:0; }
+      tr[data-campaign] { cursor:pointer; }
+      tr[data-campaign]:hover { background:#f7faff; }
+      .campaign { color:#1d4cb8; font-weight:800; }
+      .trend { color:#6b7b90; }
+      .reco { display:inline-block; border-radius:999px; padding:3px 7px; background:#eff3f8; color:#64748b; font-size:10px; font-weight:800; }
+      .reco.escalar { background:var(--green-soft); color:var(--green); }
+      .reco.pausar { background:var(--red-soft); color:var(--red); }
+      .empty { padding:28px 6px; color:var(--muted); text-align:center; font-size:12px; }
+      .source { margin:15px 2px 0; color:#8794a6; font-size:10px; }
+      .message { max-width:500px; margin:12vh auto; padding:26px; text-align:center; }
+      .message h2 { font-size:18px; }
+      .message p { color:var(--muted); }
+      .retry { border:0; border-radius:8px; padding:8px 12px; background:var(--blue); color:#fff; font-weight:800; }
+      .modal-backdrop { position:fixed; z-index:5; inset:0; background:#101b2a55; }
+      .modal { position:fixed; z-index:6; top:50%; left:50%; width:min(680px,calc(100vw - 28px)); max-height:min(700px,calc(100vh - 28px)); overflow:auto; transform:translate(-50%,-50%); padding:23px; border:1px solid var(--line); border-radius:18px; background:#fff; box-shadow:0 22px 60px #17263d44; }
+      .modal-close { position:absolute; top:12px; right:12px; width:31px; height:31px; border:0; border-radius:50%; background:#f0f3f8; color:#46566d; font-size:21px; line-height:1; }
+      .detail-name { margin:4px 35px 3px 0; font-size:21px; letter-spacing:-.04em; }
+      .detail-sub { margin:0 0 16px; color:var(--muted); font-size:12px; }
+      .detail-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:19px; }
+      .detail-metric { padding:10px; border-radius:10px; background:#f6f8fb; }
+      .detail-metric span { display:block; color:var(--muted); font-size:10px; font-weight:700; }
+      .detail-metric strong { display:block; margin-top:4px; font-size:14px; letter-spacing:-.03em; }
+      @media (max-width:980px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .content { grid-template-columns:1fr; } }
+      @media (max-width:650px) { .shell { padding-top:19px; } .topbar { align-items:flex-start; } .public { font-size:10px; } .dates { width:100%; margin-left:0; } .dates label { flex:1; } .dates input { width:100%; min-width:0; } .metrics { gap:9px; } .metric { min-height:116px; padding:13px; } .panel { padding:14px; } .scroller { margin:0 -14px; padding:0 14px; } .panel-head { flex-wrap:wrap; } .legend { justify-content:flex-start; } .table-tools { width:100%; } .table-tools input { width:100%; } .detail-metrics { grid-template-columns:repeat(2,1fr); } }
+    </style>
+  </head>
+  <body>
+    <main class="shell" id="app" aria-live="polite"><section class="message"><h2>Preparando a DASHFULL</h2><p>Conectando aos dados de performance…</p></section></main>
+    <script>
+      const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
+      const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
+      const APP = document.getElementById("app");
+      const state = { days: [], range: 7, start: "", end: "", data: null, query: "" };
+
+      const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+      const money = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL", maximumFractionDigits:0 }).format(number(value));
+      const moneyPrecise = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL", minimumFractionDigits:2, maximumFractionDigits:2 }).format(number(value));
+      const pct = value => `${number(value) > 0 ? "+" : ""}${number(value).toFixed(1)}%`;
+      const date = value => value ? `${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(2,4)}` : "—";
+      const shortDate = value => date(value).slice(0,5);
+      const tone = value => number(value) > 0 ? "positive" : number(value) < 0 ? "negative" : "";
+      const escape = value => String(value ?? "").replace(/[&<>'\"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[char]);
+      const api = async (path, options = {}) => {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...options, headers: { apikey:SUPABASE_KEY, "Content-Type":"application/json", ...options.headers } });
+        if (!response.ok) throw new Error("Não foi possível carregar os dados.");
+        return response.json();
+      };
+      const rpc = (name, body) => api(`rpc/${name}`, { method:"POST", body:JSON.stringify(body) });
+      function selectedDays() {
+        if (state.start && state.end) return state.days.filter(day => day.date >= state.start && day.date <= state.end);
+        return state.days.slice(-state.range);
+      }
+      function rangeText(days) { return days.length ? `${date(days[0].date)} → ${date(days.at(-1).date)}` : "Sem data disponível"; }
+      function aggregate(rows) {
+        const grouped = new Map();
+        rows.forEach(row => { const current = grouped.get(row.di) || { di:row.di, date:row.date, spend:0, rev:0, profit:0 }; current.spend += number(row.spend); current.rev += number(row.rev_adj); current.profit += number(row.profit); grouped.set(row.di, current); });
+        return [...grouped.values()].sort((a,b) => a.di - b.di);
+      }
+      function chart(rows) {
+        const points = aggregate(rows); if (!points.length) return '<div class="empty">Não há resultado diário neste período.</div>';
+        const w=720,h=245,p={t:14,r:14,b:29,l:14}, iw=w-p.l-p.r, ih=h-p.t-p.b;
+        const high=Math.max(...points.flatMap(row=>[row.spend,row.rev]),1), lowProfit=Math.min(0,...points.map(row=>row.profit)), highProfit=Math.max(0,...points.map(row=>row.profit)), span=highProfit-lowProfit||1;
+        const x=i=>p.l+(points.length===1?iw/2:i/(points.length-1)*iw), y=v=>p.t+ih-v/high*ih, py=v=>p.t+ih-(v-lowProfit)/span*ih, bw=Math.max(5,Math.min(15,iw/points.length*.31)), every=Math.max(1,Math.ceil(points.length/6));
+        const bars=points.map((row,i)=>`<g><rect x="${x(i)-bw-1}" y="${y(row.spend)}" width="${bw}" height="${Math.max(0,p.t+ih-y(row.spend))}" rx="2" fill="#bfd0f7"/><rect x="${x(i)+1}" y="${y(row.rev)}" width="${bw}" height="${Math.max(0,p.t+ih-y(row.rev))}" rx="2" fill="#84ceb4"/>${(i%every===0||i===points.length-1)?`<text class="axis" x="${x(i)}" y="${h-8}" text-anchor="middle">${shortDate(row.date)}</text>`:""}</g>`).join("");
+        const line=points.map((row,i)=>`${x(i)},${py(row.profit)}`).join(" ");
+        const dots=points.map((row,i)=>`<circle cx="${x(i)}" cy="${py(row.profit)}" r="2.7" fill="#245dd8"/>`).join("");
+        return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Evolução diária de gasto, receita e lucro"><line x1="${p.l}" x2="${w-p.r}" y1="${py(0)}" y2="${py(0)}" stroke="#dfe5ed" stroke-dasharray="3 4"/>${bars}<polyline fill="none" points="${line}" stroke="#245dd8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>`;
+      }
+      function totals(rows) { return rows.reduce((all,row) => ({ spend:all.spend+number(row.spend), cost:all.cost+number(row.cost), revenue:all.revenue+number(row.rev_adj), profit:all.profit+number(row.profit) }), {spend:0,cost:0,revenue:0,profit:0}); }
+      function render() {
+        const days=selectedDays(), data=state.data, loading=!data;
+        if (!state.days.length) { APP.innerHTML='<section class="message"><h2>Não há dias disponíveis</h2><p>Verifique os dados cadastrados no Supabase.</p></section>'; return; }
+        const all=data?.daily || [], fallback=totals(all), portfolio=data?.summary?.portfolio || {}, metrics={ spend:number(portfolio.spend || fallback.spend), cost:number(portfolio.cost || fallback.cost), revenue:number(portfolio.rev_adj || fallback.revenue), profit:number(portfolio.profit || fallback.profit), roi:number(portfolio.roi ?? (fallback.cost ? fallback.profit/fallback.cost*100 : 0)) };
+        const count=number(data?.summary?.operacional?.campanhas)+number(data?.summary?.residual?.campanhas)||new Set(all.map(row=>row.campaign_id)).size;
+        const partial=data?.quality?.dias_parciais || [], alerts=(data?.alerts || []).slice().sort((a,b)=>number(a.prioridade)-number(b.prioridade)||number(b.impacto)-number(a.impacto)).slice(0,7);
+        const ranking=(data?.ranking || []).filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR")));
+        APP.innerHTML=`
+          <header class="topbar"><div class="brand"><div class="mark">Df</div><div><p class="eyebrow">DIZZ 1 WAVE</p><h1>DASHFULL</h1><p class="subtitle">Performance diária, com decisões claras.</p></div></div><span class="public">Painel público</span></header>
+          <section class="filters" aria-label="Filtros de período"><span class="filter-label">Período</span><div class="ranges">${[3,5,7,14,30].map(value=>`<button data-range="${value}" class="${!state.start&&state.range===value?"active":""}">${value} dias</button>`).join("")}</div><div class="dates"><label>De <input id="start" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${state.start}" /></label><label>Até <input id="end" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${state.end}" /></label></div></section>
+          <p class="context"><strong>${rangeText(days)}</strong><span class="separator">•</span><span>${days.length} ${days.length===1?"dia com dados":"dias com dados"}</span>${loading?'<span class="separator">•</span><span>Atualizando…</span>':""}</p>
+          ${partial.length?`<div class="notice"><b>⚠</b><span><b>Dados parciais:</b> ${partial.map(escape).join(", ")}. Decisões deste período merecem conferência adicional.</span></div>`:""}
+          <section class="metrics"><article class="metric"><div class="metric-label">Gasto total</div><div class="metric-value">${money(metrics.spend)}</div><div class="metric-foot">${count} campanhas com resultado</div></article><article class="metric"><div class="metric-label">Receita líquida</div><div class="metric-value positive">${money(metrics.revenue)}</div><div class="metric-foot">Após os ajustes de receita aplicados</div></article><article class="metric"><div class="metric-label">Lucro</div><div class="metric-value ${tone(metrics.profit)}">${money(metrics.profit)}</div><div class="metric-foot">Custo total: ${money(metrics.cost)}</div></article><article class="metric"><div class="metric-label">ROI</div><div class="metric-value ${tone(metrics.roi)}">${pct(metrics.roi)}</div><div class="metric-foot">Retorno sobre o custo total</div></article></section>
+          <section class="content"><article class="panel"><div class="panel-head"><div><h2>Evolução diária</h2><p>Gasto e receita em barras; lucro em linha.</p></div><div class="legend"><span><i style="background:#bfd0f7"></i>Gasto</span><span><i style="background:#84ceb4"></i>Receita</span><span><i style="background:#245dd8"></i>Lucro</span></div></div><div class="chart">${chart(all)}</div></article><article class="panel"><div class="panel-head"><div><h2>Agir agora</h2><p>Sugestões ordenadas por impacto financeiro.</p></div></div><div class="alerts">${alerts.length?alerts.map(alert=>`<div class="alert"><span class="tag ${escape(alert.tipo)}">${escape(alert.tipo)}</span><div><div class="alert-title">${escape(alert.label)}</div><div class="alert-detail">${escape(alert.detalhe)}</div></div><div class="impact ${tone(alert.impacto)}">${money(alert.impacto)}</div></div>`).join(""):'<div class="empty">Nenhuma ação pendente neste período.</div>'}</div></article></section>
+          <section class="panel table-panel"><div class="panel-head"><div><h2>Ranking de campanhas</h2><p>Clique em uma campanha para ver o resultado dia a dia.</p></div><div class="table-tools"><input id="search" value="${escape(state.query)}" placeholder="Buscar campanha, nicho ou código" aria-label="Buscar campanha" /></div></div><div class="scroller"><table><thead><tr><th>Campanha</th><th>Gasto</th><th>Receita líq.</th><th>Lucro</th><th>ROI</th><th>Tendência</th><th>Ação</th></tr></thead><tbody>${ranking.length?ranking.map(row=>{ const recommendation=String(row.recomendacao||"acompanhar"); const trend=String(row.tendencia||"indefinida"); return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${pct(row.roi)}</td><td class="trend">${trend==="subindo"?"↑":trend==="caindo"?"↓":"→"} ${escape(trend)}</td><td><span class="reco ${escape(recommendation)}">${escape(recommendation.replaceAll("_"," "))}</span></td></tr>`; }).join(""):'<tr><td colspan="7"><div class="empty">Nenhuma campanha encontrada neste período.</div></td></tr>'}</tbody></table></div></section><p class="source">Dados consolidados do Supabase. A atualização diária é controlada na base.</p>`;
+        bind();
+      }
+      function bind() {
+        document.querySelectorAll("[data-range]").forEach(button => button.addEventListener("click", () => { state.range=Number(button.dataset.range); state.start=""; state.end=""; load(); }));
+        ["start","end"].forEach(id => document.getElementById(id)?.addEventListener("change", event => { state[id]=event.target.value; if (state.start && state.end && state.start<=state.end) load(); }));
+        document.getElementById("search")?.addEventListener("input", event => { state.query=event.target.value; render(); });
+        document.querySelectorAll("[data-campaign]").forEach(row => row.addEventListener("click", () => showCampaign(Number(row.dataset.campaign))));
+      }
+      function showCampaign(id) {
+        const campaign=state.data?.ranking?.find(row=>Number(row.campaign_id)===id), rows=(state.data?.daily||[]).filter(row=>Number(row.campaign_id)===id).sort((a,b)=>number(a.di)-number(b.di)); if (!campaign) return;
+        const total=totals(rows), roi=total.cost?total.profit/total.cost*100:0, modal=document.createElement("div"); modal.innerHTML=`<div class="modal-backdrop"></div><section class="modal" role="dialog" aria-modal="true" aria-label="Detalhe da campanha"><button class="modal-close" aria-label="Fechar">×</button><p class="eyebrow">DETALHE DA CAMPANHA</p><h2 class="detail-name">${escape(campaign.label)}</h2><p class="detail-sub">${campaign.niche?`Nicho: ${escape(campaign.niche)} · `:""}${rows.length} registros diários</p><div class="detail-metrics"><div class="detail-metric"><span>Gasto</span><strong>${money(total.spend)}</strong></div><div class="detail-metric"><span>Receita líquida</span><strong>${money(total.revenue)}</strong></div><div class="detail-metric"><span>Lucro</span><strong class="${tone(total.profit)}">${money(total.profit)}</strong></div><div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${pct(roi)}</strong></div></div><div class="scroller"><table><thead><tr><th>Data</th><th>Gasto</th><th>Rec. líq.</th><th>Lucro</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${date(row.date)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td></tr>`).join("")}</tbody></table></div></section>`; document.body.append(modal); const close=()=>modal.remove(); modal.querySelector(".modal-close").addEventListener("click",close); modal.querySelector(".modal-backdrop").addEventListener("click",close);
+      }
+      async function load() {
+        const active=selectedDays(); if (!active.length) { render(); return; } const first=active[0].di, last=active.at(-1).di; state.data=null; render();
+        try { const [summary,ranking,alerts,quality,daily]=await Promise.all([rpc("dashboard_summary",{di_ini:first,di_fim:last}),rpc("campaign_ranking",{di_ini:first,di_fim:last,min_spend:150,roi_meta:20,exclude_prefix:null}),rpc("operational_alerts",{di_ini:first,di_fim:last,min_spend:150,roi_meta:20}),rpc("data_quality_status",{di_ini:first,di_fim:last}),api(`v_daily?di=gte.${first}&di=lte.${last}&select=di,date,campaign_id,label,spend,cost,rev_adj,profit,roi,novos,rpm,status`)]); state.data={summary,ranking,alerts,quality,daily}; render(); } catch (error) { APP.innerHTML=`<section class="message"><h2>Não foi possível atualizar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>`; document.getElementById("retry").addEventListener("click", start); }
+      }
+      async function start() { try { state.days=await api("days?select=di,date,label,badge&order=di.asc"); await load(); } catch (error) { APP.innerHTML='<section class="message"><h2>Não foi possível iniciar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>'; document.getElementById("retry").addEventListener("click",start); } }
+      start();
+    </script>
+  </body>
+</html>

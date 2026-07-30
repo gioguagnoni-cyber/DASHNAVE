@@ -14,3 +14,8 @@ Dashboard público de performance diária conectado ao projeto Supabase
 
 Os dados são lidos diretamente do Supabase. As atualizações diárias devem ser
 registradas na base antes de aparecerem no painel.
+
+## Publicação
+
+A pasta `docs/` é a versão estática destinada ao GitHub Pages. Ela consulta os
+mesmos dados públicos do Supabase e é mantida junto ao código da dashboard.
