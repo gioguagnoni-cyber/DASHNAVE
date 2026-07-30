@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
 const QUICK_RANGES = [3, 5, 7, 14, 30];
+const DAILY_FIELDS = "di,date,campaign_id,label,spend,cost,rev_adj,profit,roi,novos,rpm,status";
 
 type Day = { di: number; date: string; label: string; badge?: string | null };
 type Summary = {
@@ -17,6 +18,8 @@ type RankingRow = { campaign_id: number; label: string; suffix?: string; niche?:
 type DailyRow = { di: number; date: string; campaign_id: number; label: string; spend?: number; cost?: number; rev_adj?: number; profit?: number; roi?: number; novos?: number; rpm?: number; status?: string };
 type Quality = { dias_parciais?: string[] };
 type LoadedData = { summary: Summary; alerts: Alert[]; ranking: RankingRow[]; daily: DailyRow[]; quality: Quality };
+type DrawerState = { campaign: RankingRow; rows: DailyRow[]; scopeLabel: string };
+type RoiWindow = { roi: number | null; coverage: number; requested: number };
 
 function numeric(value: unknown) { const number = Number(value); return Number.isFinite(number) ? number : 0; }
 function money(value: unknown) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(numeric(value)); }
@@ -24,6 +27,7 @@ function preciseMoney(value: unknown) { return new Intl.NumberFormat("pt-BR", { 
 function percent(value: unknown) { const number = numeric(value); return `${number > 0 ? "+" : ""}${number.toFixed(1)}%`; }
 function shortDate(value?: string) { if (!value) return "—"; const [year, month, day] = value.split("-"); return `${day}/${month}/${year.slice(2)}`; }
 function classForValue(value: unknown) { const number = numeric(value); return number > 0 ? "positive" : number < 0 ? "negative" : ""; }
+function campaignKey(row: DailyRow) { return `${row.di}:${row.campaign_id}`; }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -46,6 +50,31 @@ function useKnownDays() {
   }, []);
   useEffect(() => { void reload(); }, [reload]);
   return { days, error, reload };
+}
+
+function useFullHistory() {
+  const [rows, setRows] = useState<DailyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const reload = useCallback(async () => {
+    setLoading(true); setError(false);
+    try { setRows(await request<DailyRow[]>(`v_daily?select=${DAILY_FIELDS}&order=di.asc`)); }
+    catch { setError(true); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void reload(); }, [reload]);
+  return { rows, loading, error, reload };
+}
+
+function totalRows(rows: DailyRow[]) {
+  return rows.reduce((all, row) => ({ spend: all.spend + numeric(row.spend), cost: all.cost + numeric(row.cost), revenue: all.revenue + numeric(row.rev_adj), profit: all.profit + numeric(row.profit) }), { spend: 0, cost: 0, revenue: 0, profit: 0 });
+}
+
+function roiWindow(rows: DailyRow[], selectedDi: number, requested: number): RoiWindow | null {
+  const inWindow = rows.filter((row) => row.di <= selectedDi && row.di >= selectedDi - requested + 1);
+  const totals = totalRows(inWindow);
+  if (!inWindow.length) return null;
+  return { roi: totals.cost ? totals.profit / totals.cost * 100 : null, coverage: new Set(inWindow.map((row) => row.di)).size, requested };
 }
 
 function aggregateDaily(rows: DailyRow[]) {
@@ -88,20 +117,54 @@ function MetricCard({ label, value, foot, tone = "" }: { label: string; value: s
   return <article className={`metric-card ${tone}`}><div className="metric-label">{label}</div><div className={`metric-value ${tone === "red" ? "negative" : tone === "green" ? "positive" : ""}`}>{value}</div><div className="metric-foot">{foot}</div></article>;
 }
 
-function CampaignDrawer({ campaign, daily, onClose }: { campaign: RankingRow; daily: DailyRow[]; onClose: () => void }) {
+function RoiComparison({ label, value }: { label: string; value: RoiWindow | null }) {
+  const result = !value ? "Não rodou" : value.roi === null ? "Sem custo" : percent(value.roi);
+  return <div className="roi-comparison"><span>{label}</span><strong className={classForValue(value?.roi)}>{result}</strong>{value && value.coverage < value.requested && <small>{value.coverage}/{value.requested} dias com dados</small>}</div>;
+}
+
+function HistoryCampaignDetails({ row, historyRows, onOpenHistory }: { row: DailyRow; historyRows: DailyRow[]; onOpenHistory: (row: DailyRow) => void }) {
+  const campaignRows = historyRows.filter((item) => item.campaign_id === row.campaign_id).sort((a, b) => a.di - b.di);
+  return <div className="history-campaign-details">
+    <div className="history-metrics" aria-label={`Indicadores de ${row.label} em ${shortDate(row.date)}`}>
+      <div><span>Gasto</span><strong>{preciseMoney(row.spend)}</strong></div><div><span>Receita</span><strong>{preciseMoney(row.rev_adj)}</strong></div>
+      <div><span>Lucro</span><strong className={classForValue(row.profit)}>{preciseMoney(row.profit)}</strong></div><div><span>ROI</span><strong className={classForValue(row.roi)}>{percent(row.roi)}</strong></div>
+      <div className="history-status"><span>Status</span><strong><i className={`status-dot ${row.status ?? "sem-status"}`} />{row.status ?? "sem status"}</strong></div>
+    </div>
+    <div className="roi-comparisons" aria-label="Comparativo de ROI">
+      <RoiComparison label="Dia" value={roiWindow(campaignRows, row.di, 1)} />
+      <RoiComparison label="Ontem" value={roiWindow(campaignRows, row.di - 1, 1)} />
+      <RoiComparison label="D-2" value={roiWindow(campaignRows, row.di - 2, 1)} />
+      <RoiComparison label="Últimos 7" value={roiWindow(campaignRows, row.di, 7)} />
+      <RoiComparison label="Últimos 14" value={roiWindow(campaignRows, row.di, 14)} />
+    </div>
+    <div className="sidebar-history-block"><div className="sidebar-history-title"><span>Histórico completo</span><b>{campaignRows.length} dias</b></div><div className="sidebar-history-list">{campaignRows.map((item) => <div key={`${item.di}-${item.campaign_id}`}><span>{shortDate(item.date)}</span><span>{preciseMoney(item.spend)}</span><strong className={classForValue(item.roi)}>{percent(item.roi)}</strong><em>{item.status ?? "sem status"}</em></div>)}</div></div>
+    <button className="open-history-button" onClick={() => onOpenHistory(row)}>Abrir tabela completa</button>
+  </div>;
+}
+
+function DailyHistorySidebar({ days, historyRows, loading, error, expandedDay, expandedCampaign, onDayToggle, onCampaignToggle, onOpenHistory, onRetry }: { days: Day[]; historyRows: DailyRow[]; loading: boolean; error: boolean; expandedDay: number | null; expandedCampaign: string | null; onDayToggle: (di: number) => void; onCampaignToggle: (row: DailyRow) => void; onOpenHistory: (row: DailyRow) => void; onRetry: () => void }) {
+  return <aside className="history-sidebar" aria-label="Histórico diário de campanhas"><div className="history-sidebar-head"><div><p className="eyebrow">HISTÓRICO COMPLETO</p><h2>Campanhas por dia</h2><p>Expanda uma campanha para comparar seu ROI.</p></div><span>{historyRows.length ? `${days.length} dias` : "…"}</span></div>{loading ? <div className="history-loading">Carregando o histórico diário…</div> : error ? <div className="history-error"><p>O histórico não pôde ser carregado.</p><button onClick={onRetry}>Tentar novamente</button></div> : <div className="history-days">{[...days].reverse().map((day) => {
+    const campaigns = historyRows.filter((row) => row.di === day.di).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    const open = expandedDay === day.di;
+    return <section className="history-day" key={day.di}><button className="history-day-button" aria-expanded={open} onClick={() => onDayToggle(day.di)}><span><b>{`Dia ${day.di + 1}`}</b><small>{shortDate(day.date)}</small></span><span>{campaigns.length} campanhas <i>{open ? "−" : "+"}</i></span></button>{open && <div className="history-campaigns">{campaigns.length ? campaigns.map((row) => { const openCampaign = expandedCampaign === campaignKey(row); return <div className="history-campaign" key={campaignKey(row)}><button className="history-campaign-button" aria-expanded={openCampaign} onClick={() => onCampaignToggle(row)}><span>{row.label}</span><strong className={classForValue(row.roi)}>{percent(row.roi)}</strong><i>{openCampaign ? "−" : "+"}</i></button>{openCampaign && <HistoryCampaignDetails row={row} historyRows={historyRows} onOpenHistory={onOpenHistory} />}</div>; }) : <div className="history-empty">Nenhuma campanha neste dia.</div>}</div>}</section>;
+  })}</div>}</aside>;
+}
+
+function CampaignDrawer({ campaign, daily, scopeLabel, onClose }: { campaign: RankingRow; daily: DailyRow[]; scopeLabel: string; onClose: () => void }) {
   const rows = daily.filter((row) => row.campaign_id === campaign.campaign_id).sort((a, b) => a.di - b.di);
-  const total = rows.reduce((all, row) => ({ spend: all.spend + numeric(row.spend), cost: all.cost + numeric(row.cost), revenue: all.revenue + numeric(row.rev_adj), profit: all.profit + numeric(row.profit) }), { spend: 0, cost: 0, revenue: 0, profit: 0 });
+  const total = totalRows(rows);
   const roi = total.cost ? total.profit / total.cost * 100 : 0;
   return <><button className="drawer-backdrop" aria-label="Fechar detalhes" onClick={onClose} /><aside className="drawer" aria-label="Detalhe da campanha">
     <button className="drawer-close" aria-label="Fechar" onClick={onClose}>×</button>
-    <p className="eyebrow">Detalhe da campanha</p><h2>{campaign.label}</h2><p className="drawer-subtitle">{campaign.niche ? `Nicho: ${campaign.niche}` : "Período selecionado"} · {rows.length} registros diários</p>
+    <p className="eyebrow">{scopeLabel}</p><h2>{campaign.label}</h2><p className="drawer-subtitle">{campaign.niche ? `Nicho: ${campaign.niche} · ` : ""}{rows.length} dias com resultado</p>
     <div className="drawer-metrics"><div className="drawer-metric"><span>Gasto</span><strong>{money(total.spend)}</strong></div><div className="drawer-metric"><span>Receita líquida</span><strong>{money(total.revenue)}</strong></div><div className="drawer-metric"><span>Lucro</span><strong className={classForValue(total.profit)}>{money(total.profit)}</strong></div><div className="drawer-metric"><span>ROI</span><strong className={classForValue(roi)}>{percent(roi)}</strong></div></div>
-    <h3 className="panel-title">Dia a dia</h3><div className="table-scroller"><table className="drawer-table"><thead><tr><th>Data</th><th>Gasto</th><th>Rec. líq.</th><th>Lucro</th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.di}-${row.campaign_id}`}><td>{shortDate(row.date)}</td><td>{preciseMoney(row.spend)}</td><td>{preciseMoney(row.rev_adj)}</td><td className={classForValue(row.profit)}>{preciseMoney(row.profit)}</td></tr>)}</tbody></table></div>
+    <h3 className="panel-title">Dia a dia</h3><div className="table-scroller"><table className="drawer-table"><thead><tr><th>Data</th><th>Gasto</th><th>Rec. líq.</th><th>Lucro</th><th>ROI</th><th>Status</th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.di}-${row.campaign_id}`}><td>{shortDate(row.date)}</td><td>{preciseMoney(row.spend)}</td><td>{preciseMoney(row.rev_adj)}</td><td className={classForValue(row.profit)}>{preciseMoney(row.profit)}</td><td className={classForValue(row.roi)}>{percent(row.roi)}</td><td><span className="drawer-status"><i className={`status-dot ${row.status ?? "sem-status"}`} />{row.status ?? "sem status"}</span></td></tr>)}</tbody></table></div>
   </aside></>;
 }
 
 export function DashboardClient() {
   const { days, error: daysError, reload: reloadDays } = useKnownDays();
+  const history = useFullHistory();
   const [quickRange, setQuickRange] = useState(7);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -109,7 +172,10 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
-  const [selectedCampaign, setSelectedCampaign] = useState<RankingRow | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const latestDashboardRequest = useRef(0);
 
   const activeDays = useMemo(() => {
     const ordered = [...days].sort((a, b) => a.date.localeCompare(b.date));
@@ -120,19 +186,22 @@ export function DashboardClient() {
   const rangeEnd = activeDays.at(-1)?.di;
   const rangeKey = `${rangeStart ?? ""}:${rangeEnd ?? ""}`;
 
+  useEffect(() => { setExpandedDay((current) => current ?? days.at(-1)?.di ?? null); }, [days]);
+
   const loadDashboard = useCallback(async () => {
     if (rangeStart === undefined || rangeEnd === undefined) return;
-    setLoading(true); setError(false);
+    const requestId = ++latestDashboardRequest.current;
+    setLoading(true); setError(false); setData(null);
     try {
       const [summary, ranking, alerts, quality, daily] = await Promise.all([
         rpc<Summary>("dashboard_summary", { di_ini: rangeStart, di_fim: rangeEnd }),
         rpc<RankingRow[]>("campaign_ranking", { di_ini: rangeStart, di_fim: rangeEnd, min_spend: 150, roi_meta: 20, exclude_prefix: null }),
         rpc<Alert[]>("operational_alerts", { di_ini: rangeStart, di_fim: rangeEnd, min_spend: 150, roi_meta: 20 }),
         rpc<Quality>("data_quality_status", { di_ini: rangeStart, di_fim: rangeEnd }),
-        request<DailyRow[]>(`v_daily?di=gte.${rangeStart}&di=lte.${rangeEnd}&select=di,date,campaign_id,label,spend,cost,rev_adj,profit,roi,novos,rpm,status`),
+        request<DailyRow[]>(`v_daily?di=gte.${rangeStart}&di=lte.${rangeEnd}&select=${DAILY_FIELDS}`),
       ]);
-      setData({ summary, ranking, alerts, quality, daily });
-    } catch { setError(true); } finally { setLoading(false); }
+      if (requestId === latestDashboardRequest.current) setData({ summary, ranking, alerts, quality, daily });
+    } catch { if (requestId === latestDashboardRequest.current) setError(true); } finally { if (requestId === latestDashboardRequest.current) setLoading(false); }
   }, [rangeStart, rangeEnd]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard, rangeKey]);
@@ -143,32 +212,36 @@ export function DashboardClient() {
     return (data?.ranking ?? []).filter((row) => `${row.label} ${row.suffix ?? ""} ${row.niche ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
   }, [data?.ranking, search]);
 
-  const totals = useMemo(() => (data?.daily ?? []).reduce((all, row) => ({ spend: all.spend + numeric(row.spend), cost: all.cost + numeric(row.cost), rev_adj: all.rev_adj + numeric(row.rev_adj), profit: all.profit + numeric(row.profit) }), { spend: 0, cost: 0, rev_adj: 0, profit: 0 }), [data?.daily]);
+  const totals = useMemo(() => totalRows(data?.daily ?? []), [data?.daily]);
   const portfolio = data?.summary.portfolio;
-  const metrics = portfolio ? { spend: numeric(portfolio.spend), cost: numeric(portfolio.cost), revenue: numeric(portfolio.rev_adj), profit: numeric(portfolio.profit), roi: numeric(portfolio.roi) } : { spend: totals.spend, cost: totals.cost, revenue: totals.rev_adj, profit: totals.profit, roi: totals.cost ? totals.profit / totals.cost * 100 : 0 };
+  const metrics = portfolio ? { spend: numeric(portfolio.spend), cost: numeric(portfolio.cost), revenue: numeric(portfolio.rev_adj), profit: numeric(portfolio.profit), roi: numeric(portfolio.roi) } : { spend: totals.spend, cost: totals.cost, revenue: totals.revenue, profit: totals.profit, roi: totals.cost ? totals.profit / totals.cost * 100 : 0 };
   const campaignCount = numeric(data?.summary.operacional?.campanhas) + numeric(data?.summary.residual?.campanhas) || new Set(data?.daily.map((row) => row.campaign_id)).size;
   const rangeText = activeDays.length ? `${shortDate(activeDays[0].date)} → ${shortDate(activeDays.at(-1)?.date)}` : "Sem data disponível";
   const partialDays = data?.quality.dias_parciais ?? [];
 
   const applyQuickRange = (value: number) => { setQuickRange(value); setCustomStart(""); setCustomEnd(""); };
-  const retry = () => { void reloadDays(); void loadDashboard(); };
+  const retry = () => { void reloadDays(); void loadDashboard(); void history.reload(); };
+  const openPeriodDrawer = (campaign: RankingRow) => setDrawer({ campaign, rows: data?.daily ?? [], scopeLabel: "Período selecionado" });
+  const openHistoryDrawer = (row: DailyRow) => setDrawer({ campaign: { campaign_id: row.campaign_id, label: row.label }, rows: history.rows, scopeLabel: "Histórico completo" });
 
   if (daysError) return <main className="dashboard-shell"><div className="dashboard-wrap error-page"><div className="error-card"><h2>Não foi possível iniciar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button className="retry-button" onClick={retry}>Tentar novamente</button></div></div></main>;
   if (!days.length) return <main className="dashboard-shell"><div className="dashboard-wrap loading-page"><div className="loading-card"><div className="loading-pulse" /><p>Preparando os dados da DASHFULL…</p></div></div></main>;
 
   return <main className="dashboard-shell"><div className="dashboard-wrap">
     <header className="topbar"><div className="brand-lockup"><div className="brand-mark">Df</div><div><p className="eyebrow">DIZZ 1 WAVE</p><h1>DASHFULL</h1><p className="subtitle">Performance diária, com decisões claras.</p></div></div><span className="public-badge">Painel público</span></header>
-    <section className="filter-panel" aria-label="Filtros de período"><span className="filter-label">Período</span><div className="quick-ranges">{QUICK_RANGES.map((value) => <button key={value} className={!customStart && quickRange === value ? "active" : ""} onClick={() => applyQuickRange(value)}>{value} dias</button>)}</div><div className="date-fields"><label>De <input type="date" min={days[0]?.date} max={days.at(-1)?.date} value={customStart} onChange={(event) => setCustomStart(event.target.value)} /></label><label>Até <input type="date" min={days[0]?.date} max={days.at(-1)?.date} value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} /></label></div></section>
-    <p className="range-context"><strong>{rangeText}</strong><span className="separator">•</span><span>{activeDays.length} {activeDays.length === 1 ? "dia com dados" : "dias com dados"}</span>{loading && <><span className="separator">•</span><span>Atualizando…</span></>}</p>
-    {error ? <section className="error-card"><h2>Os dados não puderam ser atualizados</h2><p>O painel mantém a última leitura disponível. Tente novamente em alguns instantes.</p><button className="retry-button" onClick={() => void loadDashboard()}>Atualizar agora</button></section> : <>
-      {partialDays.length > 0 && <div className="quality-banner"><span>⚠</span><span><b>Dados parciais:</b> {partialDays.join(", ")}. Decisões deste período merecem conferência adicional.</span></div>}
-      <section className="metric-grid" aria-label="Resumo do período"><MetricCard label="Gasto total" value={money(metrics.spend)} foot={`${campaignCount} campanhas com resultado`} /><MetricCard label="Receita líquida" value={money(metrics.revenue)} foot="Após os ajustes de receita aplicados" tone="green" /><MetricCard label="Lucro" value={money(metrics.profit)} foot={`Custo total: ${money(metrics.cost)}`} tone={metrics.profit < 0 ? "red" : "green"} /><MetricCard label="ROI" value={percent(metrics.roi)} foot="Retorno sobre o custo total" tone={metrics.roi < 0 ? "red" : "green"} /></section>
-      <section className="content-grid"><article className="panel"><div className="panel-head"><div><h2 className="panel-title">Evolução diária</h2><p className="panel-description">Gasto e receita em barras; lucro em linha.</p></div><div className="legend"><span><i style={{ background: "#bfd0f7" }} />Gasto</span><span><i style={{ background: "#84ceb4" }} />Receita</span><span><i style={{ background: "#2259d6" }} />Lucro</span></div></div><div className="chart-area"><EvolutionChart rows={data?.daily ?? []} /></div></article>
-        <article className="panel"><div className="panel-head"><div><h2 className="panel-title">Agir agora</h2><p className="panel-description">Sugestões ordenadas por impacto financeiro.</p></div></div><div className="alerts">{(data?.alerts ?? []).slice().sort((a, b) => numeric(a.prioridade) - numeric(b.prioridade) || numeric(b.impacto) - numeric(a.impacto)).slice(0, 7).map((alert) => <div className="alert-row" key={`${alert.campaign_id}-${alert.tipo}`}><span className={`alert-type ${alert.tipo}`}>{alert.tipo}</span><div><div className="alert-campaign">{alert.label}</div><div className="alert-detail">{alert.detalhe}</div></div><div className={`alert-impact ${classForValue(alert.impacto)}`}>{money(alert.impacto)}</div></div>)}{!(data?.alerts ?? []).length && <div className="empty-state">Nenhuma ação pendente neste período.</div>}</div></article>
-      </section>
-      <section className="panel table-panel"><div className="panel-head table-head"><div><h2 className="panel-title">Ranking de campanhas</h2><p className="panel-description">Clique em uma campanha para ver o resultado dia a dia.</p></div><div className="table-tools"><input className="search-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar campanha, nicho ou código" aria-label="Buscar campanha" /></div></div><div className="table-scroller"><table><thead><tr><th>Campanha</th><th>Gasto</th><th>Receita líq.</th><th>Lucro</th><th>ROI</th><th>Tendência</th><th>Ação</th></tr></thead><tbody>{filteredRanking.map((row) => { const recommendation = row.recomendacao ?? "acompanhar"; const trend = row.tendencia ?? "indefinida"; return <tr key={row.campaign_id}><td><button className="campaign-button" onClick={() => setSelectedCampaign(row)}>{row.label}</button></td><td>{preciseMoney(row.spend)}</td><td>{preciseMoney(row.rev_adj)}</td><td className={classForValue(row.profit)}>{preciseMoney(row.profit)}</td><td className={classForValue(row.roi)}>{percent(row.roi)}</td><td><span className={`trend ${trend === "subindo" ? "up" : trend === "caindo" ? "down" : ""}`}>{trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} {trend}</span></td><td><span className={`recommendation ${recommendation}`}>{recommendation.replaceAll("_", " ")}</span></td></tr>; })}{!filteredRanking.length && <tr><td colSpan={7}><div className="empty-state">Nenhuma campanha encontrada neste período.</div></td></tr>}</tbody></table></div></section>
-      <p className="source-note">Dados consolidados do Supabase. Atualização e marcação de dias são controladas na base.</p>
-    </>}
-    {selectedCampaign && <CampaignDrawer campaign={selectedCampaign} daily={data?.daily ?? []} onClose={() => setSelectedCampaign(null)} />}
+    <section className="filter-panel" aria-label="Filtros de período"><span className="filter-label">Período do painel</span><div className="quick-ranges">{QUICK_RANGES.map((value) => <button key={value} className={!customStart && quickRange === value ? "active" : ""} onClick={() => applyQuickRange(value)}>{value} dias</button>)}</div><div className="date-fields"><label>De <input type="date" min={days[0]?.date} max={days.at(-1)?.date} value={customStart} onChange={(event) => setCustomStart(event.target.value)} /></label><label>Até <input type="date" min={days[0]?.date} max={days.at(-1)?.date} value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} /></label></div></section>
+    <div className="dashboard-body"><DailyHistorySidebar days={days} historyRows={history.rows} loading={history.loading} error={history.error} expandedDay={expandedDay} expandedCampaign={expandedCampaign} onDayToggle={(di) => { setExpandedDay((current) => current === di ? null : di); setExpandedCampaign(null); }} onCampaignToggle={(row) => setExpandedCampaign((current) => current === campaignKey(row) ? null : campaignKey(row))} onOpenHistory={openHistoryDrawer} onRetry={() => void history.reload()} />
+      <div className="dashboard-main"><p className="range-context"><strong>{rangeText}</strong><span className="separator">•</span><span>{activeDays.length} {activeDays.length === 1 ? "dia com dados" : "dias com dados"}</span>{loading && <><span className="separator">•</span><span>Atualizando…</span></>}</p>
+      {loading && !data ? <section className="period-loading"><div className="loading-pulse" /><p>Atualizando o período selecionado…</p></section> : error ? <section className="error-card"><h2>Os dados não puderam ser atualizados</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button className="retry-button" onClick={() => void loadDashboard()}>Atualizar agora</button></section> : <>
+        {partialDays.length > 0 && <div className="quality-banner"><span>⚠</span><span><b>Dados parciais:</b> {partialDays.join(", ")}. Decisões deste período merecem conferência adicional.</span></div>}
+        <section className="metric-grid" aria-label="Resumo do período"><MetricCard label="Gasto total" value={money(metrics.spend)} foot={`${campaignCount} campanhas com resultado`} /><MetricCard label="Receita líquida" value={money(metrics.revenue)} foot="Após os ajustes de receita aplicados" tone="green" /><MetricCard label="Lucro" value={money(metrics.profit)} foot={`Custo total: ${money(metrics.cost)}`} tone={metrics.profit < 0 ? "red" : "green"} /><MetricCard label="ROI" value={percent(metrics.roi)} foot="Retorno sobre o custo total" tone={metrics.roi < 0 ? "red" : "green"} /></section>
+        <section className="content-grid"><article className="panel"><div className="panel-head"><div><h2 className="panel-title">Evolução diária</h2><p className="panel-description">Gasto e receita em barras; lucro em linha.</p></div><div className="legend"><span><i style={{ background: "#bfd0f7" }} />Gasto</span><span><i style={{ background: "#84ceb4" }} />Receita</span><span><i style={{ background: "#2259d6" }} />Lucro</span></div></div><div className="chart-area"><EvolutionChart rows={data?.daily ?? []} /></div></article>
+          <article className="panel"><div className="panel-head"><div><h2 className="panel-title">Agir agora</h2><p className="panel-description">Sugestões ordenadas por impacto financeiro.</p></div></div><div className="alerts">{(data?.alerts ?? []).slice().sort((a, b) => numeric(a.prioridade) - numeric(b.prioridade) || numeric(b.impacto) - numeric(a.impacto)).slice(0, 7).map((alert) => <div className="alert-row" key={`${alert.campaign_id}-${alert.tipo}`}><span className={`alert-type ${alert.tipo}`}>{alert.tipo}</span><div><div className="alert-campaign">{alert.label}</div><div className="alert-detail">{alert.detalhe}</div></div><div className={`alert-impact ${classForValue(alert.impacto)}`}>{money(alert.impacto)}</div></div>)}{!(data?.alerts ?? []).length && <div className="empty-state">Nenhuma ação pendente neste período.</div>}</div></article>
+        </section>
+        <section className="panel table-panel"><div className="panel-head table-head"><div><h2 className="panel-title">Ranking de campanhas</h2><p className="panel-description">Este detalhe respeita o período filtrado no painel.</p></div><div className="table-tools"><input className="search-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar campanha, nicho ou código" aria-label="Buscar campanha" /></div></div><div className="table-scroller"><table><thead><tr><th>Campanha</th><th>Gasto</th><th>Receita líq.</th><th>Lucro</th><th>ROI</th><th>Tendência</th><th>Ação</th></tr></thead><tbody>{filteredRanking.map((row) => { const recommendation = row.recomendacao ?? "acompanhar"; const trend = row.tendencia ?? "indefinida"; return <tr key={row.campaign_id}><td><button className="campaign-button" onClick={() => openPeriodDrawer(row)}>{row.label}</button></td><td>{preciseMoney(row.spend)}</td><td>{preciseMoney(row.rev_adj)}</td><td className={classForValue(row.profit)}>{preciseMoney(row.profit)}</td><td className={classForValue(row.roi)}>{percent(row.roi)}</td><td><span className={`trend ${trend === "subindo" ? "up" : trend === "caindo" ? "down" : ""}`}>{trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} {trend}</span></td><td><span className={`recommendation ${recommendation}`}>{recommendation.replaceAll("_", " ")}</span></td></tr>; })}{!filteredRanking.length && <tr><td colSpan={7}><div className="empty-state">Nenhuma campanha encontrada neste período.</div></td></tr>}</tbody></table></div></section>
+        <p className="source-note">Dados consolidados do Supabase. A coluna lateral usa o histórico completo; o ranking respeita o filtro acima.</p>
+      </>}</div>
+    </div>
+    {drawer && <CampaignDrawer campaign={drawer.campaign} daily={drawer.rows} scopeLabel={drawer.scopeLabel} onClose={() => setDrawer(null)} />}
   </div></main>;
 }
