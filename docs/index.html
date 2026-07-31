@@ -829,6 +829,8 @@
         const rows = dayRows(di);
         if (!day || !rows.length) return;
 
+        const metrics = totals(rows);
+        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
         const anchor = latestDayIndex(di);
         const d1 = anchor > 0 ? [state.days[anchor - 1]] : [];
         const d2 = anchor > 1 ? [state.days[anchor - 2]] : [];
@@ -843,6 +845,13 @@
             <p class="eyebrow">CAMPANHAS DO DIA</p>
             <h2 class="detail-name" id="day-modal-title">${date(day.date)}</h2>
             <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha rodou" : "campanhas rodaram"} neste dia. Clique em uma linha para abrir o demonstrativo completo.</p>
+            <div class="detail-metrics day-total-metrics" aria-label="Resumo financeiro de ${date(day.date)}">
+              <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
+              <div class="detail-metric"><span>Custo total</span><strong>${moneyPrecise(metrics.cost)}</strong></div>
+              <div class="detail-metric"><span>Receita líquida</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
+              <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${moneyPrecise(metrics.profit)}</strong></div>
+              <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
+            </div>
             <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = Gunn − 10% de Rev Share.</p>
             <div class="scroller"><table><thead><tr><th>Campanha</th><th>Gasto</th><th>Custo</th><th>Rec. líq.</th><th>Lucro</th><th>ROI</th><th>D-1</th><th>D-2</th><th>Últ. 7</th><th>Últ. 14</th><th>Status</th></tr></thead><tbody>
               ${rows.map(row => {

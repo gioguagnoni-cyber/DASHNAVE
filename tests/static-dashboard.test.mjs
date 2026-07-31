@@ -115,8 +115,16 @@ test("modal date windows are calculated from the active panel or the day that op
   assert.equal(roiText(null), "Sem custo");
 });
 
-test("the daily modal includes total cost and the requested ROI comparisons", async () => {
+test("the daily modal summarizes its displayed campaigns and includes the requested ROI comparisons", async () => {
   const source = await dashboardSource();
+  assert.match(source, /const metrics = totals\(rows\);/);
+  assert.match(source, /const roi = metrics\.cost \? metrics\.profit \/ metrics\.cost \* 100 : null;/);
+  assert.match(source, /aria-label="Resumo financeiro de \$\{date\(day\.date\)\}"/);
+  assert.match(source, /<span>Gasto total<\/span>/);
+  assert.match(source, /<span>Custo total<\/span>/);
+  assert.match(source, /<span>Receita líquida<\/span>/);
+  assert.match(source, /<span>Lucro<\/span>/);
+  assert.match(source, /<span>ROI<\/span>/);
   assert.match(source, /Custo = gasto do Meta Ads \+ 13% de imposto/);
   assert.match(source, /<th>Custo<\/th>/);
   assert.match(source, /<th>D-1<\/th><th>D-2<\/th><th>Últ\. 7<\/th><th>Últ\. 14<\/th>/);
