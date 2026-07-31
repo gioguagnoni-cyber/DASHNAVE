@@ -17,8 +17,11 @@ Next ou Cloudflare Worker.
 - Ranking, fila de decisão e qualidade de dados são enriquecimentos progressivos
   dos RPCs `campaign_ranking`, `operational_alerts` e `data_quality_status`,
   cada um com timeout próprio.
-- O período é compartilhável pela URL: `#p=7` ou
-  `#ini=YYYY-MM-DD&fim=YYYY-MM-DD`.
+- Os atalhos do período são de 3, 7 e 30 dias; intervalos personalizados são
+  compartilháveis pela URL: `#p=7` ou `#ini=YYYY-MM-DD&fim=YYYY-MM-DD`.
+- Toda campanha abre o mesmo demonstrativo, seja selecionada no histórico, na
+  fila de decisão ou no ranking. O demonstrativo possui filtros próprios, gráfico
+  diário e tabela por dia, sem alterar o filtro principal nem a posição de rolagem.
 
 Os dados brutos de campanhas não são modificados pelo frontend. As alterações
 analíticas de banco ficam registradas em `supabase/migrations/`.
