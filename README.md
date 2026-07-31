@@ -36,6 +36,9 @@ Next ou Cloudflare Worker.
   principal nem a posição de rolagem.
 - Gasto, custo total (Meta Ads + 13%), receita bruta do GAM, receita líquida
   (GAM − 10%), lucro e ROI são exibidos separadamente.
+- Quando existe receita com custo zerado, o ROI é representado por `∞`. Se um
+  dia inteiro tiver receita e nenhum gasto registrado, o painel também alerta
+  que o arquivo do Meta Ads precisa ser conferido antes de interpretar o retorno.
 
 Os dados brutos de campanhas não são modificados pelo frontend. As alterações
 analíticas de banco ficam registradas em `supabase/migrations/`.

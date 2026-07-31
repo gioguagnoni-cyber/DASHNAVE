@@ -131,6 +131,7 @@
       .metric-label { color:var(--muted); font-size:12px; font-weight:750; }
       .metric-value { margin:10px 0 9px; font-size:clamp(21px,2.2vw,29px); font-weight:800; letter-spacing:-.055em; }
       .metric-foot { color:#7a899c; font-size:11px; }
+      .infinite-roi { display:inline-block; font-size:.86em; font-weight:650; line-height:1; letter-spacing:0; vertical-align:baseline; }
       .positive { color:var(--green)!important; }
       .negative { color:var(--red)!important; }
       .content { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(330px,1fr); gap:13px; margin-bottom:13px; }
@@ -450,7 +451,8 @@
         return cost ? number(row.profit) / cost * 100 : 0;
       };
       const roiForRow = row => number(row.cost) ? dailyRoi(row) : null;
-      const roiText = value => value === null || value === undefined ? "Sem custo" : pct(value);
+      const infinityRoi = '<span class="infinite-roi" title="Receita com custo zerado" aria-label="Infinito: receita com custo zerado">∞</span>';
+      const roiText = value => value === null || value === undefined ? infinityRoi : pct(value);
       const totalRoi = rows => {
         if (!rows.length) return null;
         const all = totals(rows);
@@ -692,7 +694,7 @@
               <article class="metric"><div class="metric-label">Gasto total</div><div class="metric-value">${money(metrics.spend)}</div><div class="metric-foot">${count} campanhas com resultado</div></article>
               <article class="metric"><div class="metric-label">Receita líquida</div><div class="metric-value positive">${money(metrics.revenue)}</div><div class="metric-foot">Após os ajustes de receita aplicados</div></article>
               <article class="metric"><div class="metric-label">Lucro</div><div class="metric-value ${tone(metrics.profit)}">${money(metrics.profit)}</div><div class="metric-foot">Custo total: ${money(metrics.cost)}</div></article>
-              <article class="metric"><div class="metric-label">ROI</div><div class="metric-value ${tone(metrics.roi)}">${pct(metrics.roi)}</div><div class="metric-foot">Retorno sobre o custo total</div></article>
+              <article class="metric"><div class="metric-label">ROI</div><div class="metric-value ${tone(metrics.roi)}">${roiText(metrics.cost ? metrics.roi : null)}</div><div class="metric-foot">Retorno sobre o custo total</div></article>
             </section>
             <section class="content">
               <article class="panel">
@@ -718,7 +720,7 @@
                 ${ranking.length ? ranking.map(row => {
                   const recommendation = String(row.recomendacao || "acompanhar");
                   const trend = String(row.tendencia || "indefinida");
-                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${pct(row.roi)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
+                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : null)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
                 }).join("") : '<tr><td colspan="7"><div class="empty">Nenhuma campanha encontrada neste período.</div></td></tr>'}
               </tbody></table></div>
             </section>
@@ -788,7 +790,7 @@
         const picked = rowsForRange(rows, start, end);
         return picked.length ? totalRoi(picked) : undefined;
       };
-      const comparisonCell = value => value === undefined ? "—" : value === null ? "Sem custo" : pct(value);
+      const comparisonCell = value => value === undefined ? "—" : roiText(value);
 
       async function loadMonthData(key) {
         const cached = state.monthCache.get(key);
@@ -914,7 +916,7 @@
       }
 
       function compare(label, value) {
-        return `<div class="comparison"><span>${label}</span><strong class="${tone(value?.roi)}">${!value ? "Não rodou" : value.roi === null ? "Sem custo" : pct(value.roi)}</strong>${value && value.coverage < value.requested ? `<small>${value.coverage}/${value.requested} dias com dados</small>` : ""}</div>`;
+        return `<div class="comparison"><span>${label}</span><strong class="${tone(value?.roi)}">${!value ? "Não rodou" : roiText(value.roi)}</strong>${value && value.coverage < value.requested ? `<small>${value.coverage}/${value.requested} dias com dados</small>` : ""}</div>`;
       }
 
       function comparisonMarkup(rows, selectedWindow) {
@@ -1052,6 +1054,7 @@
         const rawRows = route.contextRows.filter(row => number(row.di) === number(route.di));
         const metrics = totals(rawRows);
         const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
+        const missingMetaSpend = rawRows.length > 0 && metrics.spend === 0 && metrics.gross > 0;
         const getters = { roi:row => row.calculatedRoi, d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(dayCampaignRows(route), route.sort, getters);
         return `<div class="modal-heading">
@@ -1067,6 +1070,7 @@
             <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${moneyPrecise(metrics.profit)}</strong></div>
             <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
           </div>
+          ${missingMetaSpend ? '<p class="coverage-warning"><strong>Atenção:</strong> nenhum gasto do Meta Ads está registrado para este dia. O símbolo ∞ indica receita com custo zerado na base; confirme o arquivo do Meta Ads antes de interpretar como retorno real.</p>' : ""}
           <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
           <div class="scroller" data-route-scroller><table class="day-table"><thead><tr>
             ${sortableHead("Campanha", "label", route.sort)}

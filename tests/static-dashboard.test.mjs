@@ -26,7 +26,7 @@ async function dashboardHelpers() {
       return {
         state, calendarDays, comparisonCell, isoShift, modalWindow,
         monthBounds, monthCoverage, monthSummary, roiForDays, roiForRow, sortRows,
-        totalRoi, totals
+        roiText, totalRoi, totals
       };`
   )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
@@ -192,6 +192,20 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
   assert.match(dayMarkup, /sortableHead\("Últ\. 7"/);
   assert.match(dayMarkup, /sortableHead\("Últ\. 14"/);
   assert.match(dayMarkup, /sortableHead\("Status"/);
+  assert.match(dayMarkup, /nenhum gasto do Meta Ads está registrado para este dia/);
+  assert.match(dayMarkup, /confirme o arquivo do Meta Ads antes de interpretar como retorno real/);
+});
+
+test("zero cost with revenue is represented by a minimal accessible infinity symbol", async () => {
+  const source = await dashboardSource();
+  const { comparisonCell, roiText } = await dashboardHelpers();
+
+  assert.match(roiText(null), /class="infinite-roi"/);
+  assert.match(roiText(null), />∞<\/span>/);
+  assert.match(roiText(null), /aria-label="Infinito: receita com custo zerado"/);
+  assert.match(comparisonCell(null), />∞<\/span>/);
+  assert.equal(comparisonCell(undefined), "—");
+  assert.doesNotMatch(source, /Sem custo/);
 });
 
 test("every table supports ascending and descending sorting", async () => {
