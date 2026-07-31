@@ -37,7 +37,7 @@ test("the GitHub Pages dashboard is the single executable frontend", async () =>
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
   assert.match(source, /<title>DASHFULL · Performance diária<\/title>/);
-  assert.match(source, /const DAILY_FIELDS = ".*spend,tax,cost,rev,rev_adj,profit,roi/);
+  assert.match(source, /const DAILY_FIELDS = ".*spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi/);
   assert.match(source, /v_daily\?typ=eq\.msgs/);
   assert.doesNotMatch(source, /react|next\.js|vinext/i);
 });
@@ -110,7 +110,7 @@ test("the month table contains every requested sortable column and no status", a
     source.indexOf("function dayModalMarkup")
   );
   for (const heading of [
-    "Data", "Campanhas", "Gasto", "Custo", "Receita", "Receita líq.",
+    "Data", "Campanhas", "Gasto", "Custo", "Rec. Cap", "Rec. Broad", "Rec. Bruta", "Rec. Líq.",
     "Lucro", "ROI", "D-1", "D-2", "Últ. 7", "Últ. 14"
   ]) {
     assert.match(monthMarkup, new RegExp(`sortableHead\\("${heading.replace(".", "\\.")}"`));
@@ -122,10 +122,10 @@ test("the month table contains every requested sortable column and no status", a
 test("month totals and ROI comparisons use exact calendar dates", async () => {
   const { monthSummary } = await dashboardHelpers();
   const contextRows = [
-    { di:0, date:"2026-06-30", campaign_id:1, spend:100, cost:113, rev:100, rev_adj:90, profit:-23 },
-    { di:1, date:"2026-07-01", campaign_id:1, spend:100, cost:113, rev:200, rev_adj:180, profit:67 },
-    { di:2, date:"2026-07-02", campaign_id:1, spend:50, cost:56.5, rev:100, rev_adj:90, profit:33.5 },
-    { di:2, date:"2026-07-02", campaign_id:2, spend:100, cost:113, rev:100, rev_adj:90, profit:-23 }
+    { di:0, date:"2026-06-30", campaign_id:1, spend:100, cost:113, cap_rev:60, broad_rev:40, rev:100, rev_adj:90, profit:-23 },
+    { di:1, date:"2026-07-01", campaign_id:1, spend:100, cost:113, cap_rev:120, broad_rev:80, rev:200, rev_adj:180, profit:67 },
+    { di:2, date:"2026-07-02", campaign_id:1, spend:50, cost:56.5, cap_rev:60, broad_rev:40, rev:100, rev_adj:90, profit:33.5 },
+    { di:2, date:"2026-07-02", campaign_id:2, spend:100, cost:113, cap_rev:70, broad_rev:30, rev:100, rev_adj:90, profit:-23 }
   ];
   const rows = monthSummary({
     contextRows,
@@ -136,9 +136,12 @@ test("month totals and ROI comparisons use exact calendar dates", async () => {
   assert.equal(rows[1].campaigns, 2);
   assert.equal(rows[1].spend, 150);
   assert.equal(rows[1].cost, 169.5);
+  assert.equal(rows[1].cap_rev, 130);
+  assert.equal(rows[1].broad_rev, 70);
   assert.equal(rows[1].rev, 200);
   assert.equal(rows[1].rev_adj, 180);
   assert.equal(rows[1].profit, 10.5);
+  assert.equal(rows[1].cap_rev + rows[1].broad_rev, rows[1].rev);
   assert.equal(rows[0].d1, -23 / 113 * 100);
   assert.equal(rows[1].d1, 67 / 113 * 100);
   assert.equal(rows[1].d2, -23 / 113 * 100);
@@ -182,7 +185,7 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
     source.indexOf("function campaignMeta")
   );
   assert.match(dayMarkup, /aria-label="Resumo financeiro de \$\{date\(day\?\.date\)\}"/);
-  for (const heading of ["Gasto total", "Custo total", "Receita", "Receita líquida", "Lucro", "ROI"]) {
+  for (const heading of ["Gasto total", "Custo total", "Rec. Cap", "Rec. Broad", "Rec. Bruta", "Rec. líquida", "Lucro", "ROI"]) {
     assert.match(dayMarkup, new RegExp(`<span>${heading}</span>`));
   }
   assert.match(dayMarkup, /class="day-table"/);
@@ -206,6 +209,20 @@ test("zero cost with revenue is represented by a minimal accessible infinity sym
   assert.match(comparisonCell(null), />∞<\/span>/);
   assert.equal(comparisonCell(undefined), "—");
   assert.doesNotMatch(source, /Sem custo/);
+});
+
+test("totals() sums cap_rev and broad_rev without recomputing rev on the client", async () => {
+  const { totals } = await dashboardHelpers();
+  const rows = [
+    { spend:10, cost:11.3, cap_rev:6, broad_rev:4, rev:10, rev_adj:9, profit:-2.3 },
+    { spend:20, cost:22.6, cap_rev:12, broad_rev:8, rev:20, rev_adj:18, profit:-4.6 }
+  ];
+  const all = totals(rows);
+
+  assert.equal(all.capRev, 18);
+  assert.equal(all.broadRev, 12);
+  assert.equal(all.gross, 30);
+  assert.equal(all.capRev + all.broadRev, all.gross);
 });
 
 test("every table supports ascending and descending sorting", async () => {
