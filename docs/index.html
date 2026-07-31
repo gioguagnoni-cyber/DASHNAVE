@@ -108,7 +108,7 @@
       .history-days { overflow-y:auto; }
       .history-month { border-bottom:1px solid var(--line); }
       .history-month:last-child { border-bottom:0; }
-      .month-btn,.day-btn {
+      .month-btn {
         display:grid;
         width:100%;
         border:0;
@@ -117,19 +117,11 @@
         text-align:left;
       }
       .month-btn { grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px 13px; }
-      .month-btn:hover,.day-btn:hover { background:#f8faff; }
-      .month-btn span,.day-btn span:first-child { display:grid; gap:2px; }
-      .month-btn b,.day-btn b { font-size:12px; }
-      .month-btn small,.day-btn small { color:var(--muted); font-size:10px; }
-      .month-btn i,.day-btn i { color:var(--blue); font-size:15px; font-style:normal; }
-      .month-days { background:#fbfcfe; }
-      .month-days .history-day { margin:0 9px; }
-      .history-day { border-bottom:1px solid var(--line); }
-      .history-day:last-child { border-bottom:0; }
-      .day-btn { grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:11px 13px; }
-      .day-btn span:last-child { color:var(--muted); font-size:10px; font-weight:700; white-space:nowrap; }
-      .history-state { padding:20px 14px; color:var(--muted); font-size:11px; text-align:center; }
-      .history-state button { border:0; border-radius:7px; padding:6px 8px; background:var(--blue-soft); color:var(--blue); font-size:10px; font-weight:800; }
+      .month-btn:hover { background:#f8faff; }
+      .month-btn span { display:grid; gap:2px; }
+      .month-btn b { font-size:12px; }
+      .month-btn small { color:var(--muted); font-size:10px; }
+      .month-btn i { color:var(--blue); font-size:15px; font-style:normal; }
 
       .notice { display:flex; align-items:flex-start; gap:9px; margin:0 0 10px; border:1px solid #f1da93; border-radius:12px; padding:11px 13px; background:var(--amber-soft); color:#775118; font-size:12px; }
       .notice-info { border-color:#d8e3f6; background:#f4f8ff; color:#40577d; }
@@ -187,6 +179,25 @@
       table { width:100%; min-width:790px; border-collapse:collapse; text-align:left; }
       th { border-bottom:1px solid var(--line); padding:10px 8px; color:#8390a2; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
       td { border-bottom:1px solid #edf1f5; padding:11px 8px; color:#45566d; font-size:12px; white-space:nowrap; }
+      .sort-head { padding:0; }
+      .sort-button {
+        display:flex;
+        width:100%;
+        align-items:center;
+        gap:5px;
+        border:0;
+        padding:10px 8px;
+        background:transparent;
+        color:inherit;
+        font:inherit;
+        font-weight:inherit;
+        letter-spacing:inherit;
+        text-align:left;
+        text-transform:inherit;
+        white-space:nowrap;
+      }
+      .sort-button:hover { color:var(--blue); }
+      .sort-arrow { min-width:9px; color:var(--blue); font-size:10px; }
       tbody tr:last-child td { border-bottom:0; }
       tr[data-campaign] { cursor:pointer; }
       tr[data-campaign]:hover { background:#f7faff; }
@@ -218,11 +229,14 @@
         box-shadow:0 22px 60px #17263d44;
       }
       .modal-close { position:absolute; top:12px; right:12px; width:31px; height:31px; border:0; border-radius:50%; background:#f0f3f8; color:#46566d; font-size:21px; line-height:1; }
+      .modal-back { position:absolute; top:12px; left:12px; display:grid; width:31px; height:31px; place-items:center; border:0; border-radius:50%; background:#f0f3f8; color:#46566d; font-size:19px; line-height:1; }
+      .modal-back[hidden] { display:none; }
+      .modal-heading { padding:0 40px; }
       .detail-name { margin:4px 40px 3px 0; font-size:21px; letter-spacing:-.04em; }
       .detail-sub { margin:0; color:var(--muted); font-size:12px; }
       .modal-period { margin:15px 0 9px; color:#40516a; font-size:12px; font-weight:750; }
       .modal-note { margin:10px 0 0; color:var(--muted); font-size:11px; }
-      .detail-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:18px 0 12px; }
+      .detail-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin:18px 0 12px; }
       .detail-metric { min-width:0; border-radius:10px; padding:10px; background:#f6f8fb; }
       .detail-metric span { display:block; overflow:hidden; color:var(--muted); font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
       .detail-metric strong { display:block; overflow:hidden; margin-top:4px; font-size:14px; letter-spacing:-.03em; text-overflow:ellipsis; white-space:nowrap; }
@@ -242,15 +256,21 @@
       .modal-chart p { margin:3px 0 8px; color:var(--muted); font-size:10px; }
       .modal-chart .chart { min-height:200px; }
       .drawer-status { display:flex; align-items:center; gap:5px; text-transform:capitalize; }
-      .day-modal-root { z-index:20; }
-      .campaign-modal-root { z-index:30; }
-      .day-modal { width:min(1180px,calc(100vw - 28px)); }
-      .day-modal .modal-period { margin-bottom:3px; }
-      .day-modal .scroller { max-height:min(60dvh,590px); margin-top:16px; border:1px solid #edf0f5; border-radius:11px; }
-      .day-modal table { min-width:1090px; }
-      .day-campaign { cursor:pointer; }
-      .day-campaign:hover,.day-campaign:focus { background:#f7faff; outline:0; }
-      .day-campaign .campaign { text-decoration:underline; text-decoration-color:#c5d5fc; text-underline-offset:3px; }
+      .nav-modal { width:min(1500px,calc(100vw - 28px)); }
+      .nav-modal .modal-period { margin-bottom:3px; }
+      .nav-modal .scroller { max-height:min(60dvh,610px); margin-top:16px; border:1px solid #edf0f5; border-radius:11px; padding:0; }
+      .nav-modal .scroller table { min-width:1180px; }
+      .nav-modal .scroller .month-table,.nav-modal .scroller .day-table { min-width:1450px; }
+      .nav-modal .scroller th { position:sticky; z-index:2; top:0; background:#fff; }
+      .drill-row { cursor:pointer; }
+      .drill-row:hover,.drill-row:focus { background:#f7faff; outline:0; }
+      .drill-row .campaign,.drill-link { color:#1d4cb8; font-weight:800; text-decoration:underline; text-decoration-color:#c5d5fc; text-underline-offset:3px; }
+      .month-table th:first-child,.month-table td:first-child { position:sticky; z-index:3; left:0; background:#fff; }
+      .month-table th:nth-child(2),.month-table td:nth-child(2) { position:sticky; z-index:3; left:92px; background:#fff; }
+      .month-table .drill-row:hover td:first-child,.month-table .drill-row:hover td:nth-child(2),
+      .month-table .drill-row:focus td:first-child,.month-table .drill-row:focus td:nth-child(2) { background:#f7faff; }
+      .modal-loading { display:grid; min-height:280px; place-items:center; color:var(--muted); font-size:12px; text-align:center; }
+      .modal-error { margin:18px 0 0; border:1px solid #f2ccd2; border-radius:10px; padding:13px; background:var(--red-soft); color:#9b3444; font-size:12px; }
       .tax-note { margin:0; color:var(--muted); font-size:10px; }
 
       @media (max-width:1220px) {
@@ -291,8 +311,9 @@
     <script>
       const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
       const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
-      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,cost,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude";
+      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude";
       const APP = document.getElementById("app");
+      const PAGE_SIZE = 500;
       const RANGE_VALUES = new Set([3,7,30]);
       const QUICK_RANGES = [3,7,30];
       const MODAL_SCOPES = [
@@ -315,18 +336,17 @@
       const initialHash = readHash();
       const state = {
         days: [],
-        history: [],
-        historyByCampaign: new Map(),
-        historyLoaded: false,
-        historyError: false,
         range: initialHash.range,
         start: initialHash.start,
         end: initialHash.end,
         data: null,
         query: "",
-        expandedMonth: null,
-        dayModal: null,
-        modal: null,
+        monthCache: new Map(),
+        campaignCache: new Map(),
+        modalStack: [],
+        modalBaseScroll: 0,
+        modalOpener: null,
+        rankingSort: { key:"profit", direction:"desc" },
         loadId: 0,
         insightsUnavailable: false
       };
@@ -340,6 +360,17 @@
       const monthLabel = value => {
         const label = new Intl.DateTimeFormat("pt-BR", { month:"long", year:"numeric" }).format(new Date(`${value}T12:00:00`));
         return label.charAt(0).toUpperCase() + label.slice(1);
+      };
+      const isoShift = (value, amount) => {
+        const shifted = new Date(`${value}T12:00:00Z`);
+        shifted.setUTCDate(shifted.getUTCDate() + amount);
+        return shifted.toISOString().slice(0, 10);
+      };
+      const monthBounds = key => {
+        const start = `${key}-01`;
+        const end = new Date(`${start}T12:00:00Z`);
+        end.setUTCMonth(end.getUTCMonth() + 1);
+        return { start, end:end.toISOString().slice(0,10), contextStart:isoShift(start, -13) };
       };
       const tone = value => number(value) > 0 ? "positive" : number(value) < 0 ? "negative" : "";
       const statusClass = value => value === "3 dias negativos" ? "alerta" : ["lucro","negativo","quase","aguardando","pausar","reduzir","escalar","investigar"].includes(value) ? value : "sem-status";
@@ -358,6 +389,15 @@
           return response.json();
         } finally {
           clearTimeout(timer);
+        }
+      };
+      const apiAll = async path => {
+        const rows = [];
+        const separator = path.includes("?") ? "&" : "?";
+        for (let offset = 0; ; offset += PAGE_SIZE) {
+          const page = await api(`${path}${separator}limit=${PAGE_SIZE}&offset=${offset}`, {}, 10000);
+          rows.push(...page);
+          if (page.length < PAGE_SIZE) return rows;
         }
       };
       const rpc = (name, body) => api(`rpc/${name}`, { method:"POST", body:JSON.stringify(body) }, 4500);
@@ -380,9 +420,10 @@
       const totals = rows => rows.reduce((all, row) => ({
         spend:all.spend + number(row.spend),
         cost:all.cost + number(row.cost),
+        gross:all.gross + number(row.rev),
         revenue:all.revenue + number(row.rev_adj),
         profit:all.profit + number(row.profit)
-      }), { spend:0, cost:0, revenue:0, profit:0 });
+      }), { spend:0, cost:0, gross:0, revenue:0, profit:0 });
 
       const dailyRoi = row => {
         const cost = number(row.cost);
@@ -390,6 +431,30 @@
       };
       const roiForRow = row => number(row.cost) ? dailyRoi(row) : null;
       const roiText = value => value === null || value === undefined ? "Sem custo" : pct(value);
+      const totalRoi = rows => {
+        if (!rows.length) return null;
+        const all = totals(rows);
+        return all.cost ? all.profit / all.cost * 100 : null;
+      };
+      const compareValues = (first, second, direction) => {
+        const aMissing = first === null || first === undefined || Number.isNaN(first);
+        const bMissing = second === null || second === undefined || Number.isNaN(second);
+        if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+        const result = typeof first === "string" || typeof second === "string"
+          ? String(first).localeCompare(String(second), "pt-BR", { numeric:true, sensitivity:"base" })
+          : number(first) - number(second);
+        return direction === "desc" ? -result : result;
+      };
+      const sortRows = (rows, sort, getters = {}) => rows.slice().sort((a, b) => {
+        const getter = getters[sort.key] || (row => row[sort.key]);
+        return compareValues(getter(a), getter(b), sort.direction);
+      });
+      const sortableHead = (label, key, sort, scope = "modal") => {
+        const active = sort.key === key;
+        const aria = active ? (sort.direction === "asc" ? "ascending" : "descending") : "none";
+        const arrow = active ? (sort.direction === "asc" ? "↑" : "↓") : "";
+        return `<th class="sort-head" aria-sort="${aria}"><button type="button" class="sort-button" data-${scope}-sort="${key}">${label}<span class="sort-arrow" aria-hidden="true">${arrow}</span></button></th>`;
+      };
 
       function deriveDashboard(daily) {
         const groups = new Map();
@@ -520,22 +585,8 @@
       }
 
       function historyMarkup() {
-        if (!state.history.length) {
-          return `<aside class="history">
-            <div class="history-head">
-              <div><p class="eyebrow">HISTÓRICO COMPLETO</p><h2>Campanhas por mês</h2><p>Escolha um mês para visualizar os dias.</p></div>
-              <span>…</span>
-            </div>
-            <div class="history-state">${state.historyError ? "O histórico não pôde ser carregado.<br><button data-retry-history>Tentar novamente</button>" : "Carregando o histórico diário…"}</div>
-          </aside>`;
-        }
-
-        const daysWithCampaigns = state.days.map(day => ({
-          ...day,
-          campaigns:(state.historyByCampaign.get("__day__" + day.di) || []).slice().sort((a, b) => String(a.label).localeCompare(String(b.label), "pt-BR"))
-        })).filter(day => day.campaigns.length);
         const months = new Map();
-        daysWithCampaigns.forEach(day => {
+        state.days.forEach(day => {
           const key = day.date.slice(0, 7);
           const group = months.get(key) || { key, label:monthLabel(`${key}-01`), days:[] };
           group.days.push(day);
@@ -549,23 +600,12 @@
             <span>${groups.length} ${groups.length === 1 ? "mês" : "meses"}</span>
           </div>
           <div class="history-days">
-            ${groups.map(month => {
-              const open = state.expandedMonth === month.key;
-              return `<section class="history-month">
-                <button type="button" class="month-btn" data-history-month="${month.key}" aria-expanded="${open}">
+            ${groups.map(month => `<section class="history-month">
+                <button type="button" class="month-btn" data-history-month="${month.key}" aria-label="Abrir o resumo de ${escape(month.label)}">
                   <span><b>${escape(month.label)}</b><small>${month.days.length} ${month.days.length === 1 ? "dia com campanhas" : "dias com campanhas"}</small></span>
-                  <i aria-hidden="true">${open ? "−" : "+"}</i>
+                  <i aria-hidden="true">›</i>
                 </button>
-                ${open ? `<div class="month-days">${month.days.map(day => {
-                  return `<section class="history-day">
-                    <button type="button" class="day-btn" data-history-day="${day.di}" aria-label="Abrir ${day.campaigns.length} campanhas de ${date(day.date)}">
-                      <span><b>${date(day.date)}</b><small>${day.campaigns.length} campanhas</small></span>
-                      <span><i aria-hidden="true">›</i></span>
-                    </button>
-                  </section>`;
-                }).join("")}</div>` : ""}
-              </section>`;
-            }).join("")}
+              </section>`).join("")}
           </div>
         </aside>`;
       }
@@ -597,7 +637,11 @@
         const partial = quality.dias_parciais || [];
         const qualityCounts = number(quality.inconsistentes) + number(quality.suspeitos);
         const alerts = (data?.alerts || []).slice().sort((a, b) => number(a.prioridade) - number(b.prioridade) || number(b.impacto) - number(a.impacto)).slice(0, 7);
-        const ranking = (data?.ranking || []).filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR")));
+        const ranking = sortRows(
+          (data?.ranking || []).filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR"))),
+          state.rankingSort,
+          { action:row => row.recomendacao || "acompanhar", trend:row => row.tendencia || "indefinida" }
+        );
         const range = days.length ? `${date(days[0].date)} → ${date(days.at(-1).date)}` : "Sem data disponível";
         const partialNotice = partial.length ? `<div class="notice"><b>⚠</b><span><b>Dados parciais:</b> ${partial.map(escape).join(", ")}. Decisões deste período merecem conferência adicional.</span></div>` : "";
         const qualityNotice = qualityCounts ? `<div class="notice notice-info"><b>i</b><span><b>Qualidade dos dados:</b> ${number(quality.inconsistentes)} inconsistência(s) e ${number(quality.suspeitos)} registro(s) suspeito(s) no período.</span></div>` : "";
@@ -638,7 +682,15 @@
             </section>
             <section class="panel table-panel">
               <div class="panel-head"><div><h2>Ranking de campanhas</h2><p>Clique em uma campanha para abrir o demonstrativo completo.</p></div><div class="table-tools"><input id="search" value="${escape(state.query)}" placeholder="Buscar campanha, nicho ou código" aria-label="Buscar campanha" /></div></div>
-              <div class="scroller"><table><thead><tr><th>Campanha</th><th>Gasto</th><th>Receita líq.</th><th>Lucro</th><th>ROI</th><th>Tendência</th><th>Ação</th></tr></thead><tbody>
+              <div class="scroller"><table><thead><tr>
+                ${sortableHead("Campanha", "label", state.rankingSort, "ranking")}
+                ${sortableHead("Gasto", "spend", state.rankingSort, "ranking")}
+                ${sortableHead("Receita líq.", "rev_adj", state.rankingSort, "ranking")}
+                ${sortableHead("Lucro", "profit", state.rankingSort, "ranking")}
+                ${sortableHead("ROI", "roi", state.rankingSort, "ranking")}
+                ${sortableHead("Tendência", "trend", state.rankingSort, "ranking")}
+                ${sortableHead("Ação", "action", state.rankingSort, "ranking")}
+              </tr></thead><tbody>
                 ${ranking.length ? ranking.map(row => {
                   const recommendation = String(row.recomendacao || "acompanhar");
                   const trend = String(row.tendencia || "indefinida");
@@ -681,99 +733,159 @@
         });
 
         document.querySelectorAll("[data-history-month]").forEach(button => button.addEventListener("click", () => {
-          const month = button.dataset.historyMonth;
-          state.expandedMonth = state.expandedMonth === month ? null : month;
+          openMonthModal(button.dataset.historyMonth, button);
+        }));
+
+        document.querySelectorAll("[data-ranking-sort]").forEach(button => button.addEventListener("click", () => {
+          const key = button.dataset.rankingSort;
+          state.rankingSort = {
+            key,
+            direction:state.rankingSort.key === key && state.rankingSort.direction === "asc" ? "desc" : "asc"
+          };
           render({ preserveScroll:true });
         }));
 
-        document.querySelectorAll("[data-history-day]").forEach(button => button.addEventListener("click", () => {
-          openDayModal(Number(button.dataset.historyDay), button);
-        }));
-
         document.querySelectorAll("[data-campaign]").forEach(row => row.addEventListener("click", () => openCampaignModal(Number(row.dataset.campaign), row)));
-        document.querySelector("[data-retry-history]")?.addEventListener("click", loadHistory);
       }
 
-      function setHistoryIndex(rows) {
-        const index = new Map();
-        rows.forEach(row => {
-          const campaignKey = String(row.campaign_id);
-          const campaignRows = index.get(campaignKey) || [];
-          campaignRows.push(row);
-          index.set(campaignKey, campaignRows);
-          const dayKey = "__day__" + row.di;
-          const dayRows = index.get(dayKey) || [];
-          dayRows.push(row);
-          index.set(dayKey, dayRows);
+      const currentRoute = () => state.modalStack.at(-1);
+      const calendarDays = (amount, endDate) => Array.from({ length:amount }, (_, index) => ({
+        date:isoShift(endDate, index - amount + 1)
+      }));
+      const daysEqual = (first, second) => first.length === second.length
+        && first.every((day, index) => day.date === second[index]?.date);
+      const rowsForDate = (rows, target) => rows.filter(row => row.date === target);
+      const rowsForRange = (rows, start, end) => rows.filter(row => row.date >= start && row.date <= end);
+      const roiForDate = (rows, target) => {
+        const picked = rowsForDate(rows, target);
+        return picked.length ? totalRoi(picked) : undefined;
+      };
+      const roiForRange = (rows, start, end) => {
+        const picked = rowsForRange(rows, start, end);
+        return picked.length ? totalRoi(picked) : undefined;
+      };
+      const comparisonCell = value => value === undefined ? "—" : value === null ? "Sem custo" : pct(value);
+
+      async function loadMonthData(key) {
+        const cached = state.monthCache.get(key);
+        if (cached) return await cached;
+        const bounds = monthBounds(key);
+        const request = apiAll(`v_daily?typ=eq.msgs&date=gte.${bounds.contextStart}&date=lt.${bounds.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`)
+          .then(contextRows => ({
+            contextRows,
+            monthRows:contextRows.filter(row => row.date >= bounds.start && row.date < bounds.end),
+            bounds
+          }))
+          .catch(error => {
+            state.monthCache.delete(key);
+            throw error;
+          });
+        state.monthCache.set(key, request);
+        const result = await request;
+        state.monthCache.set(key, result);
+        return result;
+      }
+
+      async function loadCampaignData(id) {
+        const key = String(id);
+        const cached = state.campaignCache.get(key);
+        if (cached) return await cached;
+        const request = apiAll(`v_daily?typ=eq.msgs&campaign_id=eq.${id}&select=${DAILY_FIELDS}&order=date.asc`)
+          .catch(error => {
+            state.campaignCache.delete(key);
+            throw error;
+          });
+        state.campaignCache.set(key, request);
+        const result = await request;
+        state.campaignCache.set(key, result);
+        return result;
+      }
+
+      function monthSummary(data) {
+        const grouped = new Map();
+        data.monthRows.forEach(row => {
+          const group = grouped.get(row.date) || { date:row.date, di:row.di, rows:[] };
+          group.rows.push(row);
+          grouped.set(row.date, group);
         });
-        index.forEach((items, key) => {
-          if (!key.startsWith("__day__")) items.sort((a, b) => number(a.di) - number(b.di));
+        return [...grouped.values()].map(group => {
+          const metrics = totals(group.rows);
+          return {
+            date:group.date,
+            di:group.di,
+            campaigns:new Set(group.rows.map(row => row.campaign_id)).size,
+            spend:metrics.spend,
+            cost:metrics.cost,
+            rev:metrics.gross,
+            rev_adj:metrics.revenue,
+            profit:metrics.profit,
+            roi:metrics.cost ? metrics.profit / metrics.cost * 100 : null,
+            d1:roiForDate(data.contextRows, isoShift(group.date, -1)),
+            d2:roiForDate(data.contextRows, isoShift(group.date, -2)),
+            last7:roiForRange(data.contextRows, isoShift(group.date, -6), group.date),
+            last14:roiForRange(data.contextRows, isoShift(group.date, -13), group.date)
+          };
         });
-        state.historyByCampaign = index;
       }
 
-      function campaignRows(id) {
-        const historical = state.historyByCampaign.get(String(id));
-        if (historical?.length) return historical;
-        return (state.data?.daily || []).filter(row => Number(row.campaign_id) === Number(id)).sort((a, b) => number(a.di) - number(b.di));
+      function dayCampaignRows(route) {
+        const rows = route.contextRows.filter(row => number(row.di) === number(route.di));
+        return rows.map(row => {
+          const history = route.contextRows.filter(item => Number(item.campaign_id) === Number(row.campaign_id));
+          return {
+            ...row,
+            calculatedRoi:roiForRow(row),
+            d1:roiForDate(history, isoShift(row.date, -1)),
+            d2:roiForDate(history, isoShift(row.date, -2)),
+            last7:roiForRange(history, isoShift(row.date, -6), row.date),
+            last14:roiForRange(history, isoShift(row.date, -13), row.date)
+          };
+        });
       }
 
-      function latestDayIndex(anchorDi) {
-        if (anchorDi !== undefined && anchorDi !== null) return state.days.findIndex(day => number(day.di) === number(anchorDi));
-        const active = selectedDays();
-        return active.length ? state.days.findIndex(day => number(day.di) === number(active.at(-1).di)) : -1;
-      }
-
-      function rollingDays(amount, anchorDi) {
-        const anchor = latestDayIndex(anchorDi);
-        if (anchor < 0) return [];
-        return state.days.slice(Math.max(0, anchor - amount + 1), anchor + 1);
-      }
-
-      function daysEqual(first, second) {
-        return first.length === second.length && first.every((day, index) => number(day.di) === number(second[index]?.di));
-      }
-
-      function modalWindow(id, scope, anchorDi) {
-        const allRows = campaignRows(id);
+      function modalWindow(rows, scope, anchorDi) {
+        const sorted = rows.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
         const panelDays = selectedDays();
+        const anchorDate = state.days.find(day => number(day.di) === number(anchorDi))?.date
+          || panelDays.at(-1)?.date
+          || sorted.at(-1)?.date;
         let expectedDays = panelDays;
         let label = "Período do painel";
 
         if (scope === "complete") {
-          const first = allRows[0];
-          const last = allRows.at(-1);
+          const uniqueDays = [...new Set(sorted.map(row => row.date))].map(date => ({ date }));
           return {
-            rows:allRows,
-            expectedDays:allRows.map(row => ({ di:row.di, date:row.date })),
+            rows:sorted,
+            expectedDays:uniqueDays,
             label:"Histórico completo",
-            range:first && last ? `${date(first.date)} → ${date(last.date)}` : "Sem dados",
-            isComplete:true
+            range:sorted.length ? `${date(sorted[0].date)} → ${date(sorted.at(-1).date)}` : "Sem dados",
+            isComplete:true,
+            anchorDate
           };
         }
 
         if (scope !== "panel") {
           const amount = Number(scope);
-          expectedDays = rollingDays(amount, anchorDi);
+          expectedDays = anchorDate ? calendarDays(amount, anchorDate) : [];
           label = `${amount} ${amount === 1 ? "dia" : "dias"}`;
         }
 
-        const dayIds = new Set(expectedDays.map(day => number(day.di)));
-        const rows = allRows.filter(row => dayIds.has(number(row.di)));
+        const expectedDates = new Set(expectedDays.map(day => day.date));
         return {
-          rows,
+          rows:sorted.filter(row => expectedDates.has(row.date)),
           expectedDays,
           label,
           range:expectedDays.length ? `${date(expectedDays[0].date)} → ${date(expectedDays.at(-1).date)}` : "Sem dados",
-          isComplete:false
+          isComplete:false,
+          anchorDate
         };
       }
 
       function roiForDays(rows, days) {
-        const dayIds = new Set(days.map(day => number(day.di)));
-        const picked = rows.filter(row => dayIds.has(number(row.di)));
+        const expectedDates = new Set(days.map(day => day.date));
+        const picked = rows.filter(row => expectedDates.has(row.date));
         const all = totals(picked);
-        const coverage = new Set(picked.map(row => number(row.di))).size;
+        const coverage = new Set(picked.map(row => row.date)).size;
         return picked.length ? { roi:all.cost ? all.profit / all.cost * 100 : null, coverage, requested:days.length } : null;
       }
 
@@ -782,229 +894,342 @@
       }
 
       function comparisonMarkup(rows, selectedWindow) {
-        const anchor = latestDayIndex(selectedWindow.expectedDays.at(-1)?.di);
-        if (anchor < 0) return "";
-        const oneDayBefore = anchor > 0 ? [state.days[anchor - 1]] : [];
-        const twoDaysBefore = anchor > 1 ? [state.days[anchor - 2]] : [];
-        const anchorDi = state.days[anchor].di;
-        const lastSeven = rollingDays(7, anchorDi);
-        const lastFourteen = rollingDays(14, anchorDi);
-        const cards = [];
-
-        if (oneDayBefore.length) cards.push(compare("D-1", roiForDays(rows, oneDayBefore)));
-        if (twoDaysBefore.length) cards.push(compare("D-2", roiForDays(rows, twoDaysBefore)));
+        if (!selectedWindow.anchorDate) return "";
+        const oneDayBefore = [{ date:isoShift(selectedWindow.anchorDate, -1) }];
+        const twoDaysBefore = [{ date:isoShift(selectedWindow.anchorDate, -2) }];
+        const lastSeven = calendarDays(7, selectedWindow.anchorDate);
+        const lastFourteen = calendarDays(14, selectedWindow.anchorDate);
+        const cards = [
+          compare("D-1", roiForDays(rows, oneDayBefore)),
+          compare("D-2", roiForDays(rows, twoDaysBefore))
+        ];
         if (!daysEqual(selectedWindow.expectedDays, lastSeven)) cards.push(compare("Últimos 7", roiForDays(rows, lastSeven)));
         if (!daysEqual(selectedWindow.expectedDays, lastFourteen)) cards.push(compare("Últimos 14", roiForDays(rows, lastFourteen)));
-
-        return cards.length ? `<div class="comparisons" aria-label="Comparativos de ROI">${cards.join("")}</div>` : "";
+        return `<div class="comparisons" aria-label="Comparativos de ROI">${cards.join("")}</div>`;
       }
 
-      function dayRows(di) {
-        return (state.historyByCampaign.get("__day__" + di) || []).slice().sort((a, b) => String(a.label).localeCompare(String(b.label), "pt-BR"));
+      function saveRoutePosition() {
+        const route = currentRoute();
+        const panel = document.querySelector("[data-nav-panel]");
+        const scroller = document.querySelector("[data-route-scroller]");
+        if (!route) return;
+        route.scrollTop = panel?.scrollTop || 0;
+        route.tableScrollTop = scroller?.scrollTop || 0;
+        route.tableScrollLeft = scroller?.scrollLeft || 0;
       }
 
-      function comparisonValue(rows, days) {
-        return days.length ? roiForDays(rows, days) : null;
-      }
-
-      function comparisonCell(value) {
-        if (!value) return "—";
-        return value.roi === null ? "Sem custo" : pct(value.roi);
-      }
-
-      function openDayModal(di, opener) {
-        if (!dayRows(di).length) return;
-        closeDayModal({ restoreFocus:false });
-        state.dayModal = { di, opener, scrollTop:window.scrollY };
-        renderDayModal({ focusClose:true });
-      }
-
-      function renderDayModal(options = {}) {
-        if (!state.dayModal) return;
-        document.removeEventListener("keydown", state.dayModal.onKeyDown);
-        document.querySelector("[data-day-modal]")?.remove();
-
-        const { di, scrollTop } = state.dayModal;
-        const day = state.days.find(item => number(item.di) === number(di));
-        const rows = dayRows(di);
-        if (!day || !rows.length) return;
-
-        const metrics = totals(rows);
-        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
-        const anchor = latestDayIndex(di);
-        const d1 = anchor > 0 ? [state.days[anchor - 1]] : [];
-        const d2 = anchor > 1 ? [state.days[anchor - 2]] : [];
-        const lastSeven = rollingDays(7, di);
-        const lastFourteen = rollingDays(14, di);
-        const root = document.createElement("div");
-        root.className = "modal-root day-modal-root";
-        root.setAttribute("data-day-modal", "true");
-        root.innerHTML = `<div class="modal-backdrop" data-close-day-modal></div>
-          <section class="modal day-modal" role="dialog" aria-modal="true" aria-labelledby="day-modal-title">
-            <button type="button" class="modal-close" data-close-day-modal aria-label="Fechar campanhas do dia">×</button>
-            <p class="eyebrow">CAMPANHAS DO DIA</p>
-            <h2 class="detail-name" id="day-modal-title">${date(day.date)}</h2>
-            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha rodou" : "campanhas rodaram"} neste dia. Clique em uma linha para abrir o demonstrativo completo.</p>
-            <div class="detail-metrics day-total-metrics" aria-label="Resumo financeiro de ${date(day.date)}">
-              <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
-              <div class="detail-metric"><span>Custo total</span><strong>${moneyPrecise(metrics.cost)}</strong></div>
-              <div class="detail-metric"><span>Receita líquida</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
-              <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${moneyPrecise(metrics.profit)}</strong></div>
-              <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
-            </div>
-            <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = Gunn − 10% de Rev Share.</p>
-            <div class="scroller"><table><thead><tr><th>Campanha</th><th>Gasto</th><th>Custo</th><th>Rec. líq.</th><th>Lucro</th><th>ROI</th><th>D-1</th><th>D-2</th><th>Últ. 7</th><th>Últ. 14</th><th>Status</th></tr></thead><tbody>
-              ${rows.map(row => {
-                const history = campaignRows(row.campaign_id);
-                const rowRoi = roiForRow(row);
-                const d1Value = comparisonValue(history, d1);
-                const d2Value = comparisonValue(history, d2);
-                const sevenValue = comparisonValue(history, lastSeven);
-                const fourteenValue = comparisonValue(history, lastFourteen);
-                return `<tr class="day-campaign" tabindex="0" role="button" data-day-campaign="${row.campaign_id}" aria-label="Abrir detalhes de ${escape(row.label)}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cost)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(rowRoi)}">${roiText(rowRoi)}</td><td class="${tone(d1Value?.roi)}">${comparisonCell(d1Value)}</td><td class="${tone(d2Value?.roi)}">${comparisonCell(d2Value)}</td><td class="${tone(sevenValue?.roi)}">${comparisonCell(sevenValue)}</td><td class="${tone(fourteenValue?.roi)}">${comparisonCell(fourteenValue)}</td><td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td></tr>`;
-              }).join("")}
-            </tbody></table></div>
-          </section>`;
-
-        document.body.append(root);
-        root.querySelectorAll("[data-close-day-modal]").forEach(button => button.addEventListener("click", () => closeDayModal()));
-        root.querySelectorAll("[data-day-campaign]").forEach(row => {
-          const open = () => openCampaignModal(Number(row.dataset.dayCampaign), row, { scope:"1", anchorDi:di });
-          row.addEventListener("click", open);
-          row.addEventListener("keydown", event => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              open();
-            }
-          });
+      function restoreRoutePosition(route) {
+        requestAnimationFrame(() => {
+          const panel = document.querySelector("[data-nav-panel]");
+          const scroller = document.querySelector("[data-route-scroller]");
+          if (panel) panel.scrollTop = route.scrollTop || 0;
+          if (scroller) {
+            scroller.scrollTop = route.tableScrollTop || 0;
+            scroller.scrollLeft = route.tableScrollLeft || 0;
+          }
         });
-        state.dayModal.onKeyDown = event => {
-          if (event.key === "Escape" && !state.modal) closeDayModal();
-        };
-        document.addEventListener("keydown", state.dayModal.onKeyDown);
-        if (options.focusClose) root.querySelector(".modal-close")?.focus({ preventScroll:true });
-        window.scrollTo({ top:scrollTop, behavior:"auto" });
       }
 
-      function closeDayModal(options = {}) {
-        if (!state.dayModal) return;
-        const modal = state.dayModal;
-        closeCampaignModal({ restoreFocus:false });
-        document.removeEventListener("keydown", modal.onKeyDown);
-        document.querySelector("[data-day-modal]")?.remove();
-        state.dayModal = null;
-        window.scrollTo({ top:modal.scrollTop, behavior:"auto" });
-        if (options.restoreFocus !== false) modal.opener?.focus?.({ preventScroll:true });
+      function beginModalSession(opener) {
+        if (state.modalStack.length) {
+          saveRoutePosition();
+          return;
+        }
+        state.modalBaseScroll = window.scrollY;
+        state.modalOpener = opener;
+      }
+
+      function pushModalRoute(route, opener) {
+        beginModalSession(opener);
+        route.scrollTop = 0;
+        route.tableScrollTop = 0;
+        route.tableScrollLeft = 0;
+        state.modalStack.push(route);
+        renderNavigationModal({ focusPrimary:true });
+      }
+
+      function modalBack() {
+        if (state.modalStack.length <= 1) return;
+        saveRoutePosition();
+        state.modalStack.pop();
+        renderNavigationModal();
+      }
+
+      function closeNavigationModal(options = {}) {
+        if (!state.modalStack.length) return;
+        const opener = state.modalOpener;
+        document.querySelector("[data-nav-modal-root]")?.remove();
+        state.modalStack = [];
+        window.scrollTo({ top:state.modalBaseScroll, behavior:"auto" });
+        if (options.restoreFocus !== false) opener?.focus?.({ preventScroll:true });
+      }
+
+      function activateDrillRow(row, callback) {
+        row.addEventListener("click", callback);
+        row.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            callback();
+          }
+        });
+      }
+
+      function monthModalMarkup(route) {
+        if (route.loading) return '<div class="modal-heading"><p class="eyebrow">RESUMO MENSAL</p><h2 class="detail-name" id="nav-modal-title">Carregando mês…</h2></div><div class="modal-loading">Preparando os resultados do mês.</div>';
+        if (route.error) return `<div class="modal-heading"><p class="eyebrow">RESUMO MENSAL</p><h2 class="detail-name" id="nav-modal-title">${escape(route.label)}</h2></div><div class="modal-error">Não foi possível carregar este mês. Feche o pop-up e tente novamente.</div>`;
+
+        const getters = { d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
+        const rows = sortRows(monthSummary(route.data), route.sort, getters);
+        return `<div class="modal-heading">
+            <p class="eyebrow">RESUMO MENSAL</p>
+            <h2 class="detail-name" id="nav-modal-title">${escape(route.label)}</h2>
+            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "dia com campanhas" : "dias com campanhas"}. Clique em um dia para visualizar suas campanhas.</p>
+          </div>
+          <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share. ROI calculado sobre o custo total.</p>
+          <div class="scroller" data-route-scroller><table class="month-table"><thead><tr>
+            ${sortableHead("Data", "date", route.sort)}
+            ${sortableHead("Campanhas", "campaigns", route.sort)}
+            ${sortableHead("Gasto", "spend", route.sort)}
+            ${sortableHead("Custo", "cost", route.sort)}
+            ${sortableHead("Receita", "rev", route.sort)}
+            ${sortableHead("Receita líq.", "rev_adj", route.sort)}
+            ${sortableHead("Lucro", "profit", route.sort)}
+            ${sortableHead("ROI", "roi", route.sort)}
+            ${sortableHead("D-1", "d1", route.sort)}
+            ${sortableHead("D-2", "d2", route.sort)}
+            ${sortableHead("Últ. 7", "last7", route.sort)}
+            ${sortableHead("Últ. 14", "last14", route.sort)}
+          </tr></thead><tbody>
+            ${rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-month-day="${row.di}" aria-label="Abrir ${row.campaigns} campanhas de ${date(row.date)}">
+              <td><span class="drill-link">${date(row.date)}</span></td>
+              <td>${row.campaigns} campanhas</td>
+              <td>${moneyPrecise(row.spend)}</td>
+              <td>${moneyPrecise(row.cost)}</td>
+              <td>${moneyPrecise(row.rev)}</td>
+              <td>${moneyPrecise(row.rev_adj)}</td>
+              <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
+              <td class="${tone(row.roi)}">${roiText(row.roi)}</td>
+              <td class="${tone(row.d1)}">${comparisonCell(row.d1)}</td>
+              <td class="${tone(row.d2)}">${comparisonCell(row.d2)}</td>
+              <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
+              <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
+            </tr>`).join("")}
+          </tbody></table></div>`;
+      }
+
+      function dayModalMarkup(route) {
+        const day = state.days.find(item => number(item.di) === number(route.di));
+        const rawRows = route.contextRows.filter(row => number(row.di) === number(route.di));
+        const metrics = totals(rawRows);
+        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
+        const getters = { roi:row => row.calculatedRoi, d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
+        const rows = sortRows(dayCampaignRows(route), route.sort, getters);
+        return `<div class="modal-heading">
+            <p class="eyebrow">CAMPANHAS DO DIA</p>
+            <h2 class="detail-name" id="nav-modal-title">${date(day?.date)}</h2>
+            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha rodou" : "campanhas rodaram"} neste dia. Clique em uma campanha para abrir o demonstrativo completo.</p>
+          </div>
+          <div class="detail-metrics" aria-label="Resumo financeiro de ${date(day?.date)}">
+            <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
+            <div class="detail-metric"><span>Custo total</span><strong>${moneyPrecise(metrics.cost)}</strong></div>
+            <div class="detail-metric"><span>Receita</span><strong>${moneyPrecise(metrics.gross)}</strong></div>
+            <div class="detail-metric"><span>Receita líquida</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
+            <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${moneyPrecise(metrics.profit)}</strong></div>
+            <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
+          </div>
+          <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
+          <div class="scroller" data-route-scroller><table class="day-table"><thead><tr>
+            ${sortableHead("Campanha", "label", route.sort)}
+            ${sortableHead("Gasto", "spend", route.sort)}
+            ${sortableHead("Custo", "cost", route.sort)}
+            ${sortableHead("Receita", "rev", route.sort)}
+            ${sortableHead("Receita líq.", "rev_adj", route.sort)}
+            ${sortableHead("Lucro", "profit", route.sort)}
+            ${sortableHead("ROI", "roi", route.sort)}
+            ${sortableHead("D-1", "d1", route.sort)}
+            ${sortableHead("D-2", "d2", route.sort)}
+            ${sortableHead("Últ. 7", "last7", route.sort)}
+            ${sortableHead("Últ. 14", "last14", route.sort)}
+            ${sortableHead("Status", "status", route.sort)}
+          </tr></thead><tbody>
+            ${rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-day-campaign="${row.campaign_id}" aria-label="Abrir detalhes de ${escape(row.label)}">
+              <td class="campaign">${escape(row.label)}</td>
+              <td>${moneyPrecise(row.spend)}</td>
+              <td>${moneyPrecise(row.cost)}</td>
+              <td>${moneyPrecise(row.rev)}</td>
+              <td>${moneyPrecise(row.rev_adj)}</td>
+              <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
+              <td class="${tone(row.calculatedRoi)}">${roiText(row.calculatedRoi)}</td>
+              <td class="${tone(row.d1)}">${comparisonCell(row.d1)}</td>
+              <td class="${tone(row.d2)}">${comparisonCell(row.d2)}</td>
+              <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
+              <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
+              <td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td>
+            </tr>`).join("")}
+          </tbody></table></div>`;
       }
 
       function campaignMeta(id, rows) {
-        return (state.data?.ranking || []).find(row => Number(row.campaign_id) === Number(id)) || rows[0];
+        return (state.data?.ranking || []).find(row => Number(row.campaign_id) === Number(id)) || rows[0] || {};
       }
 
-      function openCampaignModal(id, opener, options = {}) {
-        if (!campaignRows(id).length) return;
-        closeCampaignModal({ restoreFocus:false });
-        state.modal = {
-          id,
-          scope:options.scope || "panel",
-          anchorDi:options.anchorDi ?? null,
-          opener,
-          scrollTop:window.scrollY
-        };
-        renderCampaignModal({ focusClose:true });
-      }
+      function campaignModalMarkup(route) {
+        if (!route.rows.length && route.loading) return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO DA CAMPANHA</p><h2 class="detail-name" id="nav-modal-title">Carregando campanha…</h2></div><div class="modal-loading">Preparando o histórico da campanha.</div>';
+        if (!route.rows.length) return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO DA CAMPANHA</p><h2 class="detail-name" id="nav-modal-title">Campanha indisponível</h2></div><div class="modal-error">Não foi possível carregar os dados desta campanha.</div>';
 
-      function renderCampaignModal(options = {}) {
-        if (!state.modal) return;
-        document.removeEventListener("keydown", state.modal.onKeyDown);
-        document.querySelector("[data-campaign-modal]")?.remove();
-        const { id, scope, anchorDi, scrollTop } = state.modal;
-        const allRows = campaignRows(id);
-        const selected = modalWindow(id, scope, anchorDi);
-        if (!allRows.length) return;
-
-        const campaign = campaignMeta(id, allRows);
+        const selected = modalWindow(route.rows, route.scope, route.anchorDi);
+        const campaign = campaignMeta(route.id, route.rows);
         const metrics = totals(selected.rows);
         const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
         const latest = selected.rows.at(-1);
-        const coverage = new Set(selected.rows.map(row => number(row.di))).size;
-        const scopeButtons = MODAL_SCOPES.map(item => {
-          const historicalScope = item.id !== "panel";
-          const unavailable = historicalScope && !state.historyLoaded;
-          return `<button type="button" data-modal-scope="${item.id}" class="${scope === item.id ? "active" : ""}" ${unavailable ? "disabled" : ""}>${item.label}</button>`;
-        }).join("");
-        const root = document.createElement("div");
-        root.className = "modal-root campaign-modal-root";
-        root.setAttribute("data-campaign-modal", "true");
-        root.innerHTML = `<div class="modal-backdrop" data-close-modal></div>
-          <section class="modal" role="dialog" aria-modal="true" aria-labelledby="campaign-modal-title">
-            <button type="button" class="modal-close" data-close-modal aria-label="Fechar detalhes da campanha">×</button>
+        const coverage = new Set(selected.rows.map(row => row.date)).size;
+        const scopeButtons = MODAL_SCOPES.map(item => `<button type="button" data-modal-scope="${item.id}" class="${route.scope === item.id ? "active" : ""}" ${route.loading && item.id !== "panel" ? "disabled" : ""}>${item.label}</button>`).join("");
+        const tableRows = sortRows(selected.rows.map(row => ({ ...row, calculatedRoi:roiForRow(row) })), route.sort, { roi:row => row.calculatedRoi });
+        return `<div class="modal-heading">
             <p class="eyebrow">DEMONSTRATIVO DA CAMPANHA</p>
-            <h2 class="detail-name" id="campaign-modal-title">${escape(campaign.label)}</h2>
+            <h2 class="detail-name" id="nav-modal-title">${escape(campaign.label)}</h2>
             <p class="detail-sub">${escape(campaign.suffix || campaign.niche || "Campanha de mensagens")}</p>
-            <div class="modal-scopes" aria-label="Período do demonstrativo">${scopeButtons}</div>
-            <p class="modal-period">${escape(selected.label)} · ${selected.range}</p>
-            <p class="modal-note">${selected.isComplete ? `${coverage} dias com dados no histórico` : `${coverage} de ${selected.expectedDays.length} dias com dados`}</p>
-            ${!state.historyLoaded ? '<p class="modal-note">O histórico completo ainda está carregando; por enquanto, o período do painel permanece disponível.</p>' : ""}
-            <div class="detail-metrics">
-              <div class="detail-metric"><span>Gasto</span><strong>${money(metrics.spend)}</strong></div>
-              <div class="detail-metric"><span>Custo</span><strong>${money(metrics.cost)}</strong></div>
-              <div class="detail-metric"><span>Receita líquida</span><strong>${money(metrics.revenue)}</strong></div>
-              <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${money(metrics.profit)}</strong></div>
-              <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
-            </div>
-            <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = Gunn − 10% de Rev Share.</p>
-            <p class="detail-status"><i class="dot ${statusClass(latest?.status)}"></i>Status no último dia do período: <strong>${escape(latest?.status || "sem status")}</strong></p>
-            ${comparisonMarkup(allRows, selected)}
-            <section class="modal-chart">
-              <h3>Evolução diária</h3>
-              <p>Gasto e receita em barras; lucro em linha.</p>
-              <div class="chart">${chart(selected.rows, `Evolução diária de ${campaign.label}`)}</div>
-            </section>
-            <div class="scroller"><table><thead><tr><th>Data</th><th>Gasto</th><th>Custo</th><th>Rec. líq.</th><th>Lucro</th><th>ROI</th><th>Status</th></tr></thead><tbody>
-              ${selected.rows.length ? selected.rows.map(row => { const rowRoi = roiForRow(row); return `<tr><td>${date(row.date)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cost)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(rowRoi)}">${roiText(rowRoi)}</td><td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td></tr>`; }).join("") : '<tr><td colspan="7"><div class="empty">Esta campanha não possui resultado neste período.</div></td></tr>'}
-            </tbody></table></div>
+          </div>
+          <div class="modal-scopes" aria-label="Período do demonstrativo">${scopeButtons}</div>
+          <p class="modal-period">${escape(selected.label)} · ${selected.range}</p>
+          <p class="modal-note">${selected.isComplete ? `${coverage} dias com dados no histórico` : `${coverage} de ${selected.expectedDays.length} dias com dados`}</p>
+          ${route.loading ? '<p class="modal-note">O histórico completo está sendo carregado em segundo plano.</p>' : ""}
+          ${route.error ? '<div class="modal-error">O período disponível foi mantido, mas o histórico completo não pôde ser atualizado.</div>' : ""}
+          <div class="detail-metrics">
+            <div class="detail-metric"><span>Gasto</span><strong>${money(metrics.spend)}</strong></div>
+            <div class="detail-metric"><span>Custo</span><strong>${money(metrics.cost)}</strong></div>
+            <div class="detail-metric"><span>Receita</span><strong>${money(metrics.gross)}</strong></div>
+            <div class="detail-metric"><span>Receita líquida</span><strong>${money(metrics.revenue)}</strong></div>
+            <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${money(metrics.profit)}</strong></div>
+            <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
+          </div>
+          <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
+          <p class="detail-status"><i class="dot ${statusClass(latest?.status)}"></i>Status no último dia do período: <strong>${escape(latest?.status || "sem status")}</strong></p>
+          ${comparisonMarkup(route.rows, selected)}
+          <section class="modal-chart">
+            <h3>Evolução diária</h3>
+            <p>Gasto e receita em barras; lucro em linha.</p>
+            <div class="chart">${chart(selected.rows, `Evolução diária de ${campaign.label}`)}</div>
+          </section>
+          <div class="scroller" data-route-scroller><table><thead><tr>
+            ${sortableHead("Data", "date", route.sort)}
+            ${sortableHead("Gasto", "spend", route.sort)}
+            ${sortableHead("Custo", "cost", route.sort)}
+            ${sortableHead("Receita", "rev", route.sort)}
+            ${sortableHead("Receita líq.", "rev_adj", route.sort)}
+            ${sortableHead("Lucro", "profit", route.sort)}
+            ${sortableHead("ROI", "roi", route.sort)}
+            ${sortableHead("Status", "status", route.sort)}
+          </tr></thead><tbody>
+            ${tableRows.length ? tableRows.map(row => `<tr>
+              <td>${date(row.date)}</td>
+              <td>${moneyPrecise(row.spend)}</td>
+              <td>${moneyPrecise(row.cost)}</td>
+              <td>${moneyPrecise(row.rev)}</td>
+              <td>${moneyPrecise(row.rev_adj)}</td>
+              <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
+              <td class="${tone(row.calculatedRoi)}">${roiText(row.calculatedRoi)}</td>
+              <td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td>
+            </tr>`).join("") : '<tr><td colspan="8"><div class="empty">Esta campanha não possui resultado neste período.</div></td></tr>'}
+          </tbody></table></div>`;
+      }
+
+      function renderNavigationModal(options = {}) {
+        const route = currentRoute();
+        document.querySelector("[data-nav-modal-root]")?.remove();
+        if (!route) return;
+        const content = route.kind === "month" ? monthModalMarkup(route) : route.kind === "day" ? dayModalMarkup(route) : campaignModalMarkup(route);
+        const root = document.createElement("div");
+        root.className = "modal-root";
+        root.setAttribute("data-nav-modal-root", "true");
+        root.innerHTML = `<div class="modal-backdrop"></div>
+          <section class="modal nav-modal" data-nav-panel role="dialog" aria-modal="true" aria-labelledby="nav-modal-title">
+            <button type="button" class="modal-back" data-modal-back aria-label="Voltar ao pop-up anterior" ${state.modalStack.length > 1 ? "" : "hidden"}>←</button>
+            <button type="button" class="modal-close" data-close-navigation aria-label="Fechar todos os pop-ups">×</button>
+            ${content}
           </section>`;
-
         document.body.append(root);
-        root.querySelectorAll("[data-close-modal]").forEach(button => button.addEventListener("click", () => closeCampaignModal()));
-        root.querySelectorAll("[data-modal-scope]").forEach(button => button.addEventListener("click", () => {
-          state.modal.scope = button.dataset.modalScope;
-          state.modal.scrollTop = window.scrollY;
-          renderCampaignModal();
+
+        root.querySelector("[data-close-navigation]")?.addEventListener("click", () => closeNavigationModal());
+        root.querySelector("[data-modal-back]")?.addEventListener("click", modalBack);
+        root.querySelectorAll("[data-modal-sort]").forEach(button => button.addEventListener("click", () => {
+          saveRoutePosition();
+          const key = button.dataset.modalSort;
+          route.sort = { key, direction:route.sort.key === key && route.sort.direction === "asc" ? "desc" : "asc" };
+          renderNavigationModal();
         }));
-        state.modal.onKeyDown = event => {
-          if (event.key === "Escape") closeCampaignModal();
+        root.querySelectorAll("[data-month-day]").forEach(row => activateDrillRow(row, () => openDayFromMonth(Number(row.dataset.monthDay))));
+        root.querySelectorAll("[data-day-campaign]").forEach(row => activateDrillRow(row, () => openCampaignModal(Number(row.dataset.dayCampaign), row, { scope:"1", anchorDi:route.di })));
+        root.querySelectorAll("[data-modal-scope]").forEach(button => button.addEventListener("click", () => {
+          saveRoutePosition();
+          route.scope = button.dataset.modalScope;
+          route.scrollTop = 0;
+          route.tableScrollTop = 0;
+          renderNavigationModal();
+        }));
+        restoreRoutePosition(route);
+        window.scrollTo({ top:state.modalBaseScroll, behavior:"auto" });
+        if (options.focusPrimary) (state.modalStack.length > 1 ? root.querySelector(".modal-back") : root.querySelector(".modal-close"))?.focus({ preventScroll:true });
+      }
+
+      function openMonthModal(key, opener) {
+        closeNavigationModal({ restoreFocus:false });
+        const route = {
+          kind:"month",
+          key,
+          label:monthLabel(`${key}-01`),
+          loading:true,
+          error:null,
+          data:null,
+          sort:{ key:"date", direction:"asc" }
         };
-        document.addEventListener("keydown", state.modal.onKeyDown);
-        if (options.focusClose) root.querySelector(".modal-close")?.focus({ preventScroll:true });
-        window.scrollTo({ top:scrollTop, behavior:"auto" });
+        pushModalRoute(route, opener);
+        loadMonthData(key).then(data => {
+          route.data = data;
+          route.loading = false;
+          if (currentRoute() === route) renderNavigationModal();
+        }).catch(() => {
+          route.loading = false;
+          route.error = true;
+          if (currentRoute() === route) renderNavigationModal();
+        });
       }
 
-      function closeCampaignModal(options = {}) {
-        if (!state.modal) return;
-        const modal = state.modal;
-        document.removeEventListener("keydown", modal.onKeyDown);
-        document.querySelector("[data-campaign-modal]")?.remove();
-        state.modal = null;
-        window.scrollTo({ top:modal.scrollTop, behavior:"auto" });
-        if (options.restoreFocus !== false) modal.opener?.focus?.({ preventScroll:true });
+      function openDayFromMonth(di) {
+        const parent = currentRoute();
+        if (parent?.kind !== "month" || !parent.data) return;
+        pushModalRoute({
+          kind:"day",
+          di,
+          contextRows:parent.data.contextRows,
+          sort:{ key:"label", direction:"asc" }
+        });
       }
 
-      async function loadHistory() {
-        state.historyError = false;
-        state.historyLoaded = false;
-        try {
-          state.history = await api(`v_daily?typ=eq.msgs&select=${DAILY_FIELDS}&order=di.asc`);
-          setHistoryIndex(state.history);
-          state.historyLoaded = true;
-        } catch {
-          state.history = [];
-          state.historyByCampaign = new Map();
-          state.historyError = true;
-        }
-        render({ preserveScroll:true });
-        if (state.modal) renderCampaignModal();
+      function openCampaignModal(id, opener, options = {}) {
+        const parent = currentRoute();
+        const parentRows = parent?.kind === "day" ? parent.contextRows : parent?.data?.contextRows;
+        const fallback = (parentRows || state.data?.daily || []).filter(row => Number(row.campaign_id) === Number(id));
+        const route = {
+          kind:"campaign",
+          id,
+          scope:options.scope || "panel",
+          anchorDi:options.anchorDi ?? null,
+          rows:fallback.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))),
+          loading:true,
+          error:null,
+          sort:{ key:"date", direction:"asc" }
+        };
+        pushModalRoute(route, opener);
+        loadCampaignData(id).then(rows => {
+          route.rows = rows;
+          route.loading = false;
+          if (currentRoute() === route) renderNavigationModal();
+        }).catch(() => {
+          route.loading = false;
+          route.error = true;
+          if (currentRoute() === route) renderNavigationModal();
+        });
       }
 
       async function enrichDashboard(first, last, requestId) {
@@ -1041,7 +1266,7 @@
         render(options);
 
         try {
-          const daily = await api(`v_daily?typ=eq.msgs&di=gte.${first}&di=lte.${last}&select=${DAILY_FIELDS}`);
+          const daily = await apiAll(`v_daily?typ=eq.msgs&di=gte.${first}&di=lte.${last}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`);
           if (requestId !== state.loadId) return;
           state.data = deriveDashboard(daily);
           render({ preserveScroll:Boolean(options.preserveScroll) });
@@ -1054,12 +1279,10 @@
       }
 
       async function start() {
-        closeDayModal({ restoreFocus:false });
+        closeNavigationModal({ restoreFocus:false });
         try {
           state.days = await api("days?select=di,date,label,badge&order=di.asc");
-          state.expandedMonth = null;
           syncHash();
-          void loadHistory();
           await load();
         } catch {
           APP.innerHTML = '<section class="message"><h2>Não foi possível iniciar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';

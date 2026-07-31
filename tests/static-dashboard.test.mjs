@@ -14,16 +14,30 @@ async function dashboardHelpers() {
   assert.ok(script, "inline dashboard script must exist");
   const stoppedScript = script.replace(/\n\s*start\(\);\s*$/, "");
   const fakeDocument = { getElementById: () => ({}) };
-  const fakeWindow = { addEventListener: () => {}, scrollY: 0 };
+  const fakeWindow = { addEventListener: () => {}, scrollY:0 };
   const fakeLocation = { hash:"", pathname:"/DASHNAVE/", search:"" };
   const fakeHistory = { replaceState: () => {} };
-  return new Function("document", "window", "location", "history", `${stoppedScript}\nreturn { state, setHistoryIndex, modalWindow, rollingDays, roiForDays, roiForRow, roiText };`)(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
+  return new Function(
+    "document",
+    "window",
+    "location",
+    "history",
+    `${stoppedScript}
+      return {
+        state, calendarDays, comparisonCell, isoShift, modalWindow,
+        monthBounds, monthSummary, roiForDays, roiForRow, sortRows,
+        totalRoi, totals
+      };`
+  )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
 
 test("the GitHub Pages dashboard is the single executable frontend", async () => {
   const source = await dashboardSource();
+  const script = source.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
   assert.match(source, /<title>DASHFULL · Performance diária<\/title>/);
-  assert.match(source, /const DAILY_FIELDS/);
+  assert.match(source, /const DAILY_FIELDS = ".*spend,tax,cost,rev,rev_adj,profit,roi/);
   assert.match(source, /v_daily\?typ=eq\.msgs/);
   assert.doesNotMatch(source, /react|next\.js|vinext/i);
 });
@@ -40,6 +54,19 @@ test("core metrics load independently from advanced insights", async () => {
   assert.match(source, /insightsUnavailable/);
 });
 
+test("initial and drill-down queries are paginated and the full history is lazy", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /const PAGE_SIZE = 500/);
+  assert.match(source, /const apiAll = async path/);
+  assert.match(source, /limit=\$\{PAGE_SIZE\}&offset=\$\{offset\}/);
+  assert.match(source, /const daily = await apiAll\(`v_daily\?typ=eq\.msgs&di=gte\./);
+  assert.match(source, /async function loadMonthData/);
+  assert.match(source, /async function loadCampaignData/);
+  assert.match(source, /monthCache: new Map\(\)/);
+  assert.match(source, /campaignCache: new Map\(\)/);
+  assert.doesNotMatch(source, /loadHistory|historyLoaded|state\.history/);
+});
+
 test("quick panel filters retain only 3, 7 and 30 days", async () => {
   const source = await dashboardSource();
   assert.match(source, /const RANGE_VALUES = new Set\(\[3,7,30\]\)/);
@@ -48,109 +75,154 @@ test("quick panel filters retain only 3, 7 and 30 days", async () => {
   assert.match(source, /range:RANGE_VALUES\.has\(range\) \? range : 7/);
 });
 
-test("left history opens a daily campaign list and all campaign entries share the detail modal", async () => {
+test("months open the unified modal directly instead of expanding the sidebar", async () => {
   const source = await dashboardSource();
-  const script = source.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-  assert.ok(script, "inline dashboard script must exist");
-  assert.doesNotThrow(() => new Function(script));
-  assert.match(source, /data-history-day/);
-  assert.match(source, /openDayModal\(Number\(button\.dataset\.historyDay\), button\)/);
-  assert.match(source, /function renderDayModal/);
-  assert.match(source, /data-day-campaign/);
-  assert.match(source, /openCampaignModal\(Number\(row\.dataset\.dayCampaign\), row, \{ scope:"1", anchorDi:di \}\)/);
-  assert.match(source, /data-campaign/);
-  assert.match(source, /openCampaignModal\(Number\(row\.dataset\.campaign\), row\)/);
-  assert.match(source, /function renderCampaignModal/);
-  assert.doesNotMatch(source, /data-history-campaign/);
-  assert.doesNotMatch(source, /expandedDay/);
-  assert.doesNotMatch(source, /function campaignMarkup/);
+  assert.match(source, /Campanhas por mês/);
+  assert.match(source, /data-history-month="\$\{month\.key\}"/);
+  assert.match(source, /openMonthModal\(button\.dataset\.historyMonth, button\)/);
+  assert.match(source, /function monthModalMarkup/);
+  assert.match(source, /data-month-day/);
+  assert.match(source, /function openDayFromMonth/);
+  assert.doesNotMatch(source, /data-history-day|expandedMonth|expandedDay/);
 });
 
-test("campaign modal owns its filters, chart and non-duplicative comparisons", async () => {
+test("the month table contains every requested sortable column and no status", async () => {
   const source = await dashboardSource();
-  assert.match(source, /\{ id:"panel", label:"Período do painel" \}/);
-  assert.match(source, /\{ id:"14", label:"14 dias" \}/);
-  assert.match(source, /\{ id:"complete", label:"Histórico completo" \}/);
-  assert.match(source, /data-modal-scope/);
-  assert.match(source, /function modalWindow/);
-  assert.match(source, /function comparisonMarkup/);
-  assert.match(source, /if \(!daysEqual\(selectedWindow\.expectedDays, lastSeven\)\)/);
-  assert.match(source, /<h3>Evolução diária<\/h3>/);
-  assert.match(source, /chart\(selected\.rows, `Evolução diária de/);
-  assert.doesNotMatch(source, /compare\("Dia"/);
+  const monthMarkup = source.slice(
+    source.indexOf("function monthModalMarkup"),
+    source.indexOf("function dayModalMarkup")
+  );
+  for (const heading of [
+    "Data", "Campanhas", "Gasto", "Custo", "Receita", "Receita líq.",
+    "Lucro", "ROI", "D-1", "D-2", "Últ. 7", "Últ. 14"
+  ]) {
+    assert.match(monthMarkup, new RegExp(`sortableHead\\("${heading.replace(".", "\\.")}"`));
+  }
+  assert.doesNotMatch(monthMarkup, /sortableHead\("Status"/);
+  assert.match(monthMarkup, /data-month-day="\$\{row\.di\}"/);
 });
 
-test("modal date windows are calculated from the active panel or the day that opened it", async () => {
-  const { state, setHistoryIndex, modalWindow, rollingDays, roiForDays, roiForRow, roiText } = await dashboardHelpers();
+test("month totals and ROI comparisons use exact calendar dates", async () => {
+  const { monthSummary } = await dashboardHelpers();
+  const contextRows = [
+    { di:0, date:"2026-06-30", campaign_id:1, spend:100, cost:113, rev:100, rev_adj:90, profit:-23 },
+    { di:1, date:"2026-07-01", campaign_id:1, spend:100, cost:113, rev:200, rev_adj:180, profit:67 },
+    { di:2, date:"2026-07-02", campaign_id:1, spend:50, cost:56.5, rev:100, rev_adj:90, profit:33.5 },
+    { di:2, date:"2026-07-02", campaign_id:2, spend:100, cost:113, rev:100, rev_adj:90, profit:-23 }
+  ];
+  const rows = monthSummary({
+    contextRows,
+    monthRows:contextRows.filter(row => row.date.startsWith("2026-07"))
+  });
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1].campaigns, 2);
+  assert.equal(rows[1].spend, 150);
+  assert.equal(rows[1].cost, 169.5);
+  assert.equal(rows[1].rev, 200);
+  assert.equal(rows[1].rev_adj, 180);
+  assert.equal(rows[1].profit, 10.5);
+  assert.equal(rows[0].d1, -23 / 113 * 100);
+  assert.equal(rows[1].d1, 67 / 113 * 100);
+  assert.equal(rows[1].d2, -23 / 113 * 100);
+  assert.equal(rows[1].last7, 54.5 / 395.5 * 100);
+});
+
+test("campaign periods use calendar windows and preserve missing-day coverage", async () => {
+  const { state, calendarDays, modalWindow, roiForDays, roiForRow } = await dashboardHelpers();
   state.days = [
     { di:10, date:"2026-07-10" },
-    { di:11, date:"2026-07-11" },
     { di:12, date:"2026-07-12" },
     { di:13, date:"2026-07-13" }
   ];
   state.range = 3;
   state.start = "";
   state.end = "";
-  state.historyLoaded = true;
-  state.history = [
-    { di:10, date:"2026-07-10", campaign_id:9, label:"Campanha teste", spend:10, cost:10, rev_adj:14, profit:4 },
-    { di:12, date:"2026-07-12", campaign_id:9, label:"Campanha teste", spend:20, cost:20, rev_adj:18, profit:-2 },
-    { di:13, date:"2026-07-13", campaign_id:9, label:"Campanha teste", spend:30, cost:30, rev_adj:39, profit:9 }
+  const rows = [
+    { di:10, date:"2026-07-10", campaign_id:9, cost:10, profit:4 },
+    { di:12, date:"2026-07-12", campaign_id:9, cost:20, profit:-2 },
+    { di:13, date:"2026-07-13", campaign_id:9, cost:30, profit:9 }
   ];
-  setHistoryIndex(state.history);
 
-  const panel = modalWindow(9, "panel");
-  const lastFourteen = modalWindow(9, "14");
-  const selectedDay = modalWindow(9, "1", 12);
-  const complete = modalWindow(9, "complete");
+  const panel = modalWindow(rows, "panel");
+  const lastSeven = modalWindow(rows, "7", 13);
+  const selectedDay = modalWindow(rows, "1", 12);
+  const complete = modalWindow(rows, "complete");
 
-  assert.deepEqual(panel.expectedDays.map(day => day.di), [11, 12, 13]);
-  assert.deepEqual(panel.rows.map(row => row.di), [12, 13]);
-  assert.deepEqual(rollingDays(14).map(day => day.di), [10, 11, 12, 13]);
-  assert.equal(lastFourteen.range, "10/07/26 → 13/07/26");
+  assert.deepEqual(panel.expectedDays.map(day => day.date), ["2026-07-10", "2026-07-12", "2026-07-13"]);
+  assert.deepEqual(lastSeven.expectedDays.map(day => day.date), calendarDays(7, "2026-07-13").map(day => day.date));
+  assert.equal(lastSeven.range, "07/07/26 → 13/07/26");
   assert.deepEqual(selectedDay.rows.map(row => row.di), [12]);
   assert.deepEqual(complete.rows.map(row => row.di), [10, 12, 13]);
-  assert.equal(roiForDays(complete.rows, panel.expectedDays).coverage, 2);
+  assert.equal(roiForDays(lastSeven.rows, lastSeven.expectedDays).coverage, 3);
   assert.equal(roiForRow({ cost:0, profit:20 }), null);
-  assert.equal(roiText(null), "Sem custo");
 });
 
-test("the daily modal summarizes its displayed campaigns and includes the requested ROI comparisons", async () => {
+test("daily popup has summary cards, drill-down rows and the complete financial table", async () => {
   const source = await dashboardSource();
-  assert.match(source, /const metrics = totals\(rows\);/);
-  assert.match(source, /const roi = metrics\.cost \? metrics\.profit \/ metrics\.cost \* 100 : null;/);
-  assert.match(source, /aria-label="Resumo financeiro de \$\{date\(day\.date\)\}"/);
-  assert.match(source, /<span>Gasto total<\/span>/);
-  assert.match(source, /<span>Custo total<\/span>/);
-  assert.match(source, /<span>Receita líquida<\/span>/);
-  assert.match(source, /<span>Lucro<\/span>/);
-  assert.match(source, /<span>ROI<\/span>/);
+  const dayMarkup = source.slice(
+    source.indexOf("function dayModalMarkup"),
+    source.indexOf("function campaignMeta")
+  );
+  assert.match(dayMarkup, /aria-label="Resumo financeiro de \$\{date\(day\?\.date\)\}"/);
+  for (const heading of ["Gasto total", "Custo total", "Receita", "Receita líquida", "Lucro", "ROI"]) {
+    assert.match(dayMarkup, new RegExp(`<span>${heading}</span>`));
+  }
+  assert.match(dayMarkup, /class="day-table"/);
+  assert.match(dayMarkup, /data-day-campaign="\$\{row\.campaign_id\}"/);
+  assert.match(dayMarkup, /sortableHead\("D-1"/);
+  assert.match(dayMarkup, /sortableHead\("D-2"/);
+  assert.match(dayMarkup, /sortableHead\("Últ\. 7"/);
+  assert.match(dayMarkup, /sortableHead\("Últ\. 14"/);
+  assert.match(dayMarkup, /sortableHead\("Status"/);
+});
+
+test("every table supports ascending and descending sorting", async () => {
+  const { sortRows } = await dashboardHelpers();
+  const rows = [
+    { label:"Campanha 10", profit:10, optional:null },
+    { label:"Campanha 2", profit:-5, optional:2 },
+    { label:"África", profit:30, optional:1 }
+  ];
+  assert.deepEqual(sortRows(rows, { key:"profit", direction:"asc" }).map(row => row.profit), [-5, 10, 30]);
+  assert.deepEqual(sortRows(rows, { key:"profit", direction:"desc" }).map(row => row.profit), [30, 10, -5]);
+  assert.deepEqual(sortRows(rows, { key:"label", direction:"asc" }).map(row => row.label), ["África", "Campanha 2", "Campanha 10"]);
+  assert.deepEqual(sortRows(rows, { key:"optional", direction:"asc" }).map(row => row.optional), [1, 2, null]);
+});
+
+test("the popup flow behaves like browser history and only X closes it", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /modalStack: \[\]/);
+  assert.match(source, /state\.modalStack\.push\(route\)/);
+  assert.match(source, /state\.modalStack\.pop\(\)/);
+  assert.match(source, /data-modal-back/);
+  assert.match(source, /data-close-navigation/);
+  assert.match(source, /aria-label="Fechar todos os pop-ups"/);
+  assert.doesNotMatch(source, /querySelector\("\.modal-backdrop"\)/);
+  assert.match(source, /route\.tableScrollTop = scroller\?\.scrollTop/);
+  assert.match(source, /scroller\.scrollTop = route\.tableScrollTop/);
+  assert.match(source, /window\.scrollTo\(\{ top:state\.modalBaseScroll, behavior:"auto" \}\)/);
+  assert.match(source, /opener\?\.focus\?\.\(\{ preventScroll:true \}\)/);
+});
+
+test("campaign details keep their own filters, chart and exact comparisons", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /\{ id:"panel", label:"Período do painel" \}/);
+  assert.match(source, /\{ id:"14", label:"14 dias" \}/);
+  assert.match(source, /\{ id:"complete", label:"Histórico completo" \}/);
+  assert.match(source, /data-modal-scope/);
+  assert.match(source, /function comparisonMarkup/);
+  assert.match(source, /if \(!daysEqual\(selectedWindow\.expectedDays, lastSeven\)\)/);
+  assert.match(source, /<h3>Evolução diária<\/h3>/);
+  assert.match(source, /chart\(selected\.rows, `Evolução diária de/);
+});
+
+test("cost, revenue and concise negative-streak rules remain explicit", async () => {
+  const source = await dashboardSource();
   assert.match(source, /Custo = gasto do Meta Ads \+ 13% de imposto/);
-  assert.match(source, /<th>Custo<\/th>/);
-  assert.match(source, /<th>D-1<\/th><th>D-2<\/th><th>Últ\. 7<\/th><th>Últ\. 14<\/th>/);
-  assert.match(source, /function closeDayModal/);
-  assert.match(source, /if \(event\.key === "Escape" && !state\.modal\)/);
-});
-
-test("opening and closing a campaign preserves the dashboard scroll position", async () => {
-  const source = await dashboardSource();
-  assert.match(source, /scrollTop:window\.scrollY/);
-  assert.match(source, /render\(\{ preserveScroll:true \}\)/);
-  assert.match(source, /window\.scrollTo\(\{ top:scrollTop, behavior:"auto" \}\)/);
-  assert.match(source, /modal\.opener\?\.focus\?\.\(\{ preventScroll:true \}\)/);
-  assert.match(source, /\.modal-close"\)\?\.focus\(\{ preventScroll:true \}\)/);
-});
-
-test("history is grouped by real calendar month and negative streak alerts stay concise", async () => {
-  const source = await dashboardSource();
-  assert.match(source, /const monthLabel/);
-  assert.match(source, /data-history-month/);
-  assert.match(source, /expandedMonth/);
-  assert.match(source, /Campanhas por mês/);
-  assert.doesNotMatch(source, /Dia \$\{day\.di\+1\}/);
+  assert.match(source, /Receita líquida = GAM − 10% de Rev Share/);
   assert.match(source, /detalhe:"ROI negativo, três dias consecutivos\."/);
   assert.doesNotMatch(source, /últimos 3:/);
-  assert.match(source, /\.alert:has\(\.tag\.alerta\)/);
 });
 
 test("the action panel reserves space for impact without overlapping campaign names", async () => {

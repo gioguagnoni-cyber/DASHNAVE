@@ -6,6 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "build:sites": "node scripts/build-sites.mjs",
     "test": "node --test tests/static-dashboard.test.mjs",
     "lint": "node --check tests/static-dashboard.test.mjs"
   },
