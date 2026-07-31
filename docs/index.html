@@ -314,7 +314,7 @@
     <script>
       const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
       const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
-      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude";
+      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude";
       const APP = document.getElementById("app");
       const PAGE_SIZE = 500;
       const RANGE_VALUES = new Set([3,7,30]);
@@ -443,8 +443,10 @@
         cost:all.cost + number(row.cost),
         gross:all.gross + number(row.rev),
         revenue:all.revenue + number(row.rev_adj),
-        profit:all.profit + number(row.profit)
-      }), { spend:0, cost:0, gross:0, revenue:0, profit:0 });
+        profit:all.profit + number(row.profit),
+        capRev:all.capRev + number(row.cap_rev),
+        broadRev:all.broadRev + number(row.broad_rev)
+      }), { spend:0, cost:0, gross:0, revenue:0, profit:0, capRev:0, broadRev:0 });
 
       const dailyRoi = row => {
         const cost = number(row.cost);
@@ -663,8 +665,18 @@
         const partial = quality.dias_parciais || [];
         const qualityCounts = number(quality.inconsistentes) + number(quality.suspeitos);
         const alerts = (data?.alerts || []).slice().sort((a, b) => number(a.prioridade) - number(b.prioridade) || number(b.impacto) - number(a.impacto)).slice(0, 7);
+        const revenueByCampaign = new Map();
+        all.forEach(row => {
+          const entry = revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 };
+          entry.cap_rev += number(row.cap_rev);
+          entry.broad_rev += number(row.broad_rev);
+          entry.rev += number(row.rev);
+          revenueByCampaign.set(row.campaign_id, entry);
+        });
         const ranking = sortRows(
-          (data?.ranking || []).filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR"))),
+          (data?.ranking || [])
+            .map(row => ({ ...row, ...(revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 }) }))
+            .filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR"))),
           state.rankingSort,
           { action:row => row.recomendacao || "acompanhar", trend:row => row.tendencia || "indefinida" }
         );
@@ -711,7 +723,10 @@
               <div class="scroller"><table><thead><tr>
                 ${sortableHead("Campanha", "label", state.rankingSort, "ranking")}
                 ${sortableHead("Gasto", "spend", state.rankingSort, "ranking")}
-                ${sortableHead("Receita líq.", "rev_adj", state.rankingSort, "ranking")}
+                ${sortableHead("Rec. Cap", "cap_rev", state.rankingSort, "ranking")}
+                ${sortableHead("Rec. Broad", "broad_rev", state.rankingSort, "ranking")}
+                ${sortableHead("Rec. Bruta", "rev", state.rankingSort, "ranking")}
+                ${sortableHead("Rec. Líq.", "rev_adj", state.rankingSort, "ranking")}
                 ${sortableHead("Lucro", "profit", state.rankingSort, "ranking")}
                 ${sortableHead("ROI", "roi", state.rankingSort, "ranking")}
                 ${sortableHead("Tendência", "trend", state.rankingSort, "ranking")}
@@ -720,8 +735,8 @@
                 ${ranking.length ? ranking.map(row => {
                   const recommendation = String(row.recomendacao || "acompanhar");
                   const trend = String(row.tendencia || "indefinida");
-                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : null)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
-                }).join("") : '<tr><td colspan="7"><div class="empty">Nenhuma campanha encontrada neste período.</div></td></tr>'}
+                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cap_rev)}</td><td>${moneyPrecise(row.broad_rev)}</td><td>${moneyPrecise(row.rev)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : null)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
+                }).join("") : '<tr><td colspan="10"><div class="empty">Nenhuma campanha encontrada neste período.</div></td></tr>'}
               </tbody></table></div>
             </section>
             <p class="source">Dados consolidados do Supabase. O painel principal usa exclusivamente campanhas de mensagens; alertas e ranking avançado são enriquecidos sem bloquear a visualização.</p>
@@ -842,6 +857,8 @@
             campaigns:new Set(group.rows.map(row => row.campaign_id)).size,
             spend:metrics.spend,
             cost:metrics.cost,
+            cap_rev:metrics.capRev,
+            broad_rev:metrics.broadRev,
             rev:metrics.gross,
             rev_adj:metrics.revenue,
             profit:metrics.profit,
@@ -1023,8 +1040,10 @@
             ${sortableHead("Campanhas", "campaigns", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
             ${sortableHead("Custo", "cost", route.sort)}
-            ${sortableHead("Receita", "rev", route.sort)}
-            ${sortableHead("Receita líq.", "rev_adj", route.sort)}
+            ${sortableHead("Rec. Cap", "cap_rev", route.sort)}
+            ${sortableHead("Rec. Broad", "broad_rev", route.sort)}
+            ${sortableHead("Rec. Bruta", "rev", route.sort)}
+            ${sortableHead("Rec. Líq.", "rev_adj", route.sort)}
             ${sortableHead("Lucro", "profit", route.sort)}
             ${sortableHead("ROI", "roi", route.sort)}
             ${sortableHead("D-1", "d1", route.sort)}
@@ -1037,6 +1056,8 @@
               <td>${row.campaigns} campanhas</td>
               <td>${moneyPrecise(row.spend)}</td>
               <td>${moneyPrecise(row.cost)}</td>
+              <td>${moneyPrecise(row.cap_rev)}</td>
+              <td>${moneyPrecise(row.broad_rev)}</td>
               <td>${moneyPrecise(row.rev)}</td>
               <td>${moneyPrecise(row.rev_adj)}</td>
               <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
@@ -1065,8 +1086,10 @@
           <div class="detail-metrics" aria-label="Resumo financeiro de ${date(day?.date)}">
             <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
             <div class="detail-metric"><span>Custo total</span><strong>${moneyPrecise(metrics.cost)}</strong></div>
-            <div class="detail-metric"><span>Receita</span><strong>${moneyPrecise(metrics.gross)}</strong></div>
-            <div class="detail-metric"><span>Receita líquida</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
+            <div class="detail-metric"><span>Rec. Cap</span><strong>${moneyPrecise(metrics.capRev)}</strong></div>
+            <div class="detail-metric"><span>Rec. Broad</span><strong>${moneyPrecise(metrics.broadRev)}</strong></div>
+            <div class="detail-metric"><span>Rec. Bruta</span><strong>${moneyPrecise(metrics.gross)}</strong></div>
+            <div class="detail-metric"><span>Rec. líquida</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
             <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${moneyPrecise(metrics.profit)}</strong></div>
             <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
           </div>
@@ -1132,8 +1155,10 @@
           <div class="detail-metrics">
             <div class="detail-metric"><span>Gasto</span><strong>${money(metrics.spend)}</strong></div>
             <div class="detail-metric"><span>Custo</span><strong>${money(metrics.cost)}</strong></div>
-            <div class="detail-metric"><span>Receita</span><strong>${money(metrics.gross)}</strong></div>
-            <div class="detail-metric"><span>Receita líquida</span><strong>${money(metrics.revenue)}</strong></div>
+            <div class="detail-metric"><span>Rec. Cap</span><strong>${money(metrics.capRev)} <small>(${metrics.gross ? Math.round(metrics.capRev / metrics.gross * 100) : 0}%)</small></strong></div>
+            <div class="detail-metric"><span>Rec. Broad</span><strong>${money(metrics.broadRev)} <small>(${metrics.gross ? Math.round(metrics.broadRev / metrics.gross * 100) : 0}%)</small></strong></div>
+            <div class="detail-metric"><span>Rec. Bruta</span><strong>${money(metrics.gross)}</strong></div>
+            <div class="detail-metric"><span>Rec. líquida</span><strong>${money(metrics.revenue)}</strong></div>
             <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${money(metrics.profit)}</strong></div>
             <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
           </div>
