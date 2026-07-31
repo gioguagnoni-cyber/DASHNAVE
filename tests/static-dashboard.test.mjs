@@ -204,6 +204,12 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
   }
   assert.match(dayMarkup, /class="day-table"/);
   assert.match(dayMarkup, /data-day-campaign="\$\{row\.campaign_id\}"/);
+  assert.match(dayMarkup, /sortableHead\("Rec\. Cap", "cap_rev"/);
+  assert.match(dayMarkup, /sortableHead\("Rec\. Broad", "broad_rev"/);
+  assert.match(dayMarkup, /sortableHead\("Rec\. Bruta", "rev"/);
+  assert.match(dayMarkup, /sortableHead\("Rec\. Líq\.", "rev_adj"/);
+  assert.match(dayMarkup, /<td>\$\{moneyPrecise\(row\.cap_rev\)\}<\/td>/);
+  assert.match(dayMarkup, /<td>\$\{moneyPrecise\(row\.broad_rev\)\}<\/td>/);
   assert.match(dayMarkup, /sortableHead\("D-1"/);
   assert.match(dayMarkup, /sortableHead\("D-2"/);
   assert.match(dayMarkup, /sortableHead\("Últ\. 7"/);
@@ -211,6 +217,21 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
   assert.match(dayMarkup, /sortableHead\("Status"/);
   assert.match(dayMarkup, /nenhum gasto do Meta Ads está registrado para este dia/);
   assert.match(dayMarkup, /confirme o arquivo do Meta Ads antes de interpretar como retorno real/);
+});
+
+test("campaign history table breaks revenue into cap/broad/gross/net columns", async () => {
+  const source = await dashboardSource();
+  const campaignMarkup = source.slice(
+    source.indexOf("function campaignModalMarkup"),
+    source.indexOf("function renderNavigationModal")
+  );
+  assert.match(campaignMarkup, /sortableHead\("Rec\. Cap", "cap_rev"/);
+  assert.match(campaignMarkup, /sortableHead\("Rec\. Broad", "broad_rev"/);
+  assert.match(campaignMarkup, /sortableHead\("Rec\. Bruta", "rev"/);
+  assert.match(campaignMarkup, /sortableHead\("Rec\. Líq\.", "rev_adj"/);
+  assert.match(campaignMarkup, /<td>\$\{moneyPrecise\(row\.cap_rev\)\}<\/td>/);
+  assert.match(campaignMarkup, /<td>\$\{moneyPrecise\(row\.broad_rev\)\}<\/td>/);
+  assert.match(campaignMarkup, /colspan="10"/);
 });
 
 test("zero cost with revenue is represented by a minimal accessible infinity symbol", async () => {

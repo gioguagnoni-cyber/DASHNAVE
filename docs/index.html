@@ -1099,8 +1099,10 @@
             ${sortableHead("Campanha", "label", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
             ${sortableHead("Custo", "cost", route.sort)}
-            ${sortableHead("Receita", "rev", route.sort)}
-            ${sortableHead("Receita líq.", "rev_adj", route.sort)}
+            ${sortableHead("Rec. Cap", "cap_rev", route.sort)}
+            ${sortableHead("Rec. Broad", "broad_rev", route.sort)}
+            ${sortableHead("Rec. Bruta", "rev", route.sort)}
+            ${sortableHead("Rec. Líq.", "rev_adj", route.sort)}
             ${sortableHead("Lucro", "profit", route.sort)}
             ${sortableHead("ROI", "roi", route.sort)}
             ${sortableHead("D-1", "d1", route.sort)}
@@ -1113,6 +1115,8 @@
               <td class="campaign">${escape(row.label)}</td>
               <td>${moneyPrecise(row.spend)}</td>
               <td>${moneyPrecise(row.cost)}</td>
+              <td>${moneyPrecise(row.cap_rev)}</td>
+              <td>${moneyPrecise(row.broad_rev)}</td>
               <td>${moneyPrecise(row.rev)}</td>
               <td>${moneyPrecise(row.rev_adj)}</td>
               <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
@@ -1174,8 +1178,10 @@
             ${sortableHead("Data", "date", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
             ${sortableHead("Custo", "cost", route.sort)}
-            ${sortableHead("Receita", "rev", route.sort)}
-            ${sortableHead("Receita líq.", "rev_adj", route.sort)}
+            ${sortableHead("Rec. Cap", "cap_rev", route.sort)}
+            ${sortableHead("Rec. Broad", "broad_rev", route.sort)}
+            ${sortableHead("Rec. Bruta", "rev", route.sort)}
+            ${sortableHead("Rec. Líq.", "rev_adj", route.sort)}
             ${sortableHead("Lucro", "profit", route.sort)}
             ${sortableHead("ROI", "roi", route.sort)}
             ${sortableHead("Status", "status", route.sort)}
@@ -1184,12 +1190,14 @@
               <td>${date(row.date)}</td>
               <td>${moneyPrecise(row.spend)}</td>
               <td>${moneyPrecise(row.cost)}</td>
+              <td>${moneyPrecise(row.cap_rev)}</td>
+              <td>${moneyPrecise(row.broad_rev)}</td>
               <td>${moneyPrecise(row.rev)}</td>
               <td>${moneyPrecise(row.rev_adj)}</td>
               <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
               <td class="${tone(row.calculatedRoi)}">${roiText(row.calculatedRoi)}</td>
               <td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td>
-            </tr>`).join("") : '<tr><td colspan="8"><div class="empty">Esta campanha não possui resultado neste período.</div></td></tr>'}
+            </tr>`).join("") : '<tr><td colspan="10"><div class="empty">Esta campanha não possui resultado neste período.</div></td></tr>'}
           </tbody></table></div>`;
       }
 
