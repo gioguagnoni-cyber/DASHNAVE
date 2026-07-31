@@ -271,6 +271,8 @@
       .month-table .drill-row:focus td:first-child,.month-table .drill-row:focus td:nth-child(2) { background:#f7faff; }
       .modal-loading { display:grid; min-height:280px; place-items:center; color:var(--muted); font-size:12px; text-align:center; }
       .modal-error { margin:18px 0 0; border:1px solid #f2ccd2; border-radius:10px; padding:13px; background:var(--red-soft); color:#9b3444; font-size:12px; }
+      .coverage-warning { margin:10px 0 0; border:1px solid #f1da93; border-radius:9px; padding:9px 11px; background:var(--amber-soft); color:#775118; font-size:10px; }
+      .coverage-warning + .tax-note { margin-top:9px; }
       .tax-note { margin:0; color:var(--muted); font-size:10px; }
 
       @media (max-width:1220px) {
@@ -371,6 +373,24 @@
         const end = new Date(`${start}T12:00:00Z`);
         end.setUTCMonth(end.getUTCMonth() + 1);
         return { start, end:end.toISOString().slice(0,10), contextStart:isoShift(start, -13) };
+      };
+      const monthCoverage = days => {
+        const dates = [...new Set(days.map(day => day.date).filter(Boolean))].sort();
+        if (!dates.length) return { first:null, last:null, periodDays:0, daysWithData:0, missing:[] };
+        const recorded = new Set(dates);
+        const missing = [];
+        let periodDays = 0;
+        for (let current = dates[0]; current <= dates.at(-1); current = isoShift(current, 1)) {
+          periodDays += 1;
+          if (!recorded.has(current)) missing.push(current);
+        }
+        return {
+          first:dates[0],
+          last:dates.at(-1),
+          periodDays,
+          daysWithData:dates.length,
+          missing
+        };
       };
       const tone = value => number(value) > 0 ? "positive" : number(value) < 0 ? "negative" : "";
       const statusClass = value => value === "3 dias negativos" ? "alerta" : ["lucro","negativo","quase","aguardando","pausar","reduzir","escalar","investigar"].includes(value) ? value : "sem-status";
@@ -600,12 +620,16 @@
             <span>${groups.length} ${groups.length === 1 ? "mês" : "meses"}</span>
           </div>
           <div class="history-days">
-            ${groups.map(month => `<section class="history-month">
-                <button type="button" class="month-btn" data-history-month="${month.key}" aria-label="Abrir o resumo de ${escape(month.label)}">
-                  <span><b>${escape(month.label)}</b><small>${month.days.length} ${month.days.length === 1 ? "dia com campanhas" : "dias com campanhas"}</small></span>
-                  <i aria-hidden="true">›</i>
-                </button>
-              </section>`).join("")}
+            ${groups.map(month => {
+              const coverage = monthCoverage(month.days);
+              const dataDetail = coverage.missing.length ? ` · ${coverage.daysWithData} com dados` : "";
+              return `<section class="history-month">
+                  <button type="button" class="month-btn" data-history-month="${month.key}" aria-label="Abrir o resumo de ${escape(month.label)}">
+                    <span><b>${escape(month.label)}</b><small>${coverage.periodDays} ${coverage.periodDays === 1 ? "dia" : "dias"} no período${dataDetail}</small></span>
+                    <i aria-hidden="true">›</i>
+                  </button>
+                </section>`;
+            }).join("")}
           </div>
         </aside>`;
       }
@@ -980,11 +1004,17 @@
 
         const getters = { d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(monthSummary(route.data), route.sort, getters);
+        const coverage = monthCoverage(rows);
+        const coverageLabel = coverage.missing.length
+          ? `${coverage.periodDays} dias no período · ${coverage.daysWithData} com dados`
+          : `${coverage.periodDays} ${coverage.periodDays === 1 ? "dia" : "dias"} no período`;
+        const missingLabel = coverage.missing.map(date).join(", ");
         return `<div class="modal-heading">
             <p class="eyebrow">RESUMO MENSAL</p>
             <h2 class="detail-name" id="nav-modal-title">${escape(route.label)}</h2>
-            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "dia com campanhas" : "dias com campanhas"}. Clique em um dia para visualizar suas campanhas.</p>
+            <p class="detail-sub">${coverageLabel}. Clique em um dia com dados para visualizar suas campanhas.</p>
           </div>
+          ${coverage.missing.length ? `<p class="coverage-warning"><strong>Atenção:</strong> ainda não há dados importados para ${missingLabel}.</p>` : ""}
           <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share. ROI calculado sobre o custo total.</p>
           <div class="scroller" data-route-scroller><table class="month-table"><thead><tr>
             ${sortableHead("Data", "date", route.sort)}

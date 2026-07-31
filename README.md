@@ -24,6 +24,10 @@ Next ou Cloudflare Worker.
 - A coluna histórica lista apenas os meses. Selecionar um mês abre o resumo
   financeiro de cada dia; selecionar o dia abre suas campanhas; selecionar uma
   campanha abre seu demonstrativo completo.
+- O total mensal representa o intervalo entre a primeira e a última data
+  importada. Lacunas são mostradas separadamente como dias ainda sem dados,
+  evitando confundir o dia mais recente do mês com a quantidade de arquivos
+  efetivamente recebidos.
 - Esse fluxo usa um único pop-up com navegação interna de retorno. O `X` fecha
   todo o fluxo, enquanto a seta volta ao nível anterior preservando a posição
   da tabela.

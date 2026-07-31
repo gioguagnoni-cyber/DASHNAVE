@@ -25,7 +25,7 @@ async function dashboardHelpers() {
     `${stoppedScript}
       return {
         state, calendarDays, comparisonCell, isoShift, modalWindow,
-        monthBounds, monthSummary, roiForDays, roiForRow, sortRows,
+        monthBounds, monthCoverage, monthSummary, roiForDays, roiForRow, sortRows,
         totalRoi, totals
       };`
   )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
@@ -81,9 +81,26 @@ test("months open the unified modal directly instead of expanding the sidebar", 
   assert.match(source, /data-history-month="\$\{month\.key\}"/);
   assert.match(source, /openMonthModal\(button\.dataset\.historyMonth, button\)/);
   assert.match(source, /function monthModalMarkup/);
+  assert.match(source, /dias"} no período/);
+  assert.match(source, /com dados/);
   assert.match(source, /data-month-day/);
   assert.match(source, /function openDayFromMonth/);
   assert.doesNotMatch(source, /data-history-day|expandedMonth|expandedDay/);
+});
+
+test("monthly coverage follows the latest imported date and exposes data gaps", async () => {
+  const { monthCoverage } = await dashboardHelpers();
+  const days = [
+    ...Array.from({ length:4 }, (_, index) => ({ date:`2026-07-${String(index + 1).padStart(2, "0")}` })),
+    ...Array.from({ length:22 }, (_, index) => ({ date:`2026-07-${String(index + 8).padStart(2, "0")}` }))
+  ];
+  const july = monthCoverage(days);
+
+  assert.equal(july.first, "2026-07-01");
+  assert.equal(july.last, "2026-07-29");
+  assert.equal(july.periodDays, 29);
+  assert.equal(july.daysWithData, 26);
+  assert.deepEqual(july.missing, ["2026-07-05", "2026-07-06", "2026-07-07"]);
 });
 
 test("the month table contains every requested sortable column and no status", async () => {
