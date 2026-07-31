@@ -17,7 +17,7 @@ async function dashboardHelpers() {
   const fakeWindow = { addEventListener: () => {}, scrollY: 0 };
   const fakeLocation = { hash:"", pathname:"/DASHNAVE/", search:"" };
   const fakeHistory = { replaceState: () => {} };
-  return new Function("document", "window", "location", "history", `${stoppedScript}\nreturn { state, setHistoryIndex, modalWindow, rollingDays, roiForDays };`)(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
+  return new Function("document", "window", "location", "history", `${stoppedScript}\nreturn { state, setHistoryIndex, modalWindow, rollingDays, roiForDays, roiForRow, roiText };`)(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
 
 test("the GitHub Pages dashboard is the single executable frontend", async () => {
@@ -48,19 +48,22 @@ test("quick panel filters retain only 3, 7 and 30 days", async () => {
   assert.match(source, /range:RANGE_VALUES\.has\(range\) \? range : 7/);
 });
 
-test("left history, alerts and ranking share the campaign detail modal", async () => {
+test("left history opens a daily campaign list and all campaign entries share the detail modal", async () => {
   const source = await dashboardSource();
   const script = source.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, "inline dashboard script must exist");
   assert.doesNotThrow(() => new Function(script));
-  assert.match(source, /data-history-campaign/);
+  assert.match(source, /data-history-day/);
+  assert.match(source, /openDayModal\(Number\(button\.dataset\.historyDay\), button\)/);
+  assert.match(source, /function renderDayModal/);
+  assert.match(source, /data-day-campaign/);
+  assert.match(source, /openCampaignModal\(Number\(row\.dataset\.dayCampaign\), row, \{ scope:"1", anchorDi:di \}\)/);
   assert.match(source, /data-campaign/);
-  assert.match(source, /openCampaignModal\(Number\(button\.dataset\.historyCampaign\), button\)/);
   assert.match(source, /openCampaignModal\(Number\(row\.dataset\.campaign\), row\)/);
   assert.match(source, /function renderCampaignModal/);
-  assert.doesNotMatch(source, /function campaignDetails/);
-  assert.doesNotMatch(source, /expandedCampaign/);
-  assert.doesNotMatch(source, /data-open-history/);
+  assert.doesNotMatch(source, /data-history-campaign/);
+  assert.doesNotMatch(source, /expandedDay/);
+  assert.doesNotMatch(source, /function campaignMarkup/);
 });
 
 test("campaign modal owns its filters, chart and non-duplicative comparisons", async () => {
@@ -77,8 +80,8 @@ test("campaign modal owns its filters, chart and non-duplicative comparisons", a
   assert.doesNotMatch(source, /compare\("Dia"/);
 });
 
-test("modal date windows are calculated from the end of the active panel", async () => {
-  const { state, setHistoryIndex, modalWindow, rollingDays, roiForDays } = await dashboardHelpers();
+test("modal date windows are calculated from the active panel or the day that opened it", async () => {
+  const { state, setHistoryIndex, modalWindow, rollingDays, roiForDays, roiForRow, roiText } = await dashboardHelpers();
   state.days = [
     { di:10, date:"2026-07-10" },
     { di:11, date:"2026-07-11" },
@@ -98,14 +101,27 @@ test("modal date windows are calculated from the end of the active panel", async
 
   const panel = modalWindow(9, "panel");
   const lastFourteen = modalWindow(9, "14");
+  const selectedDay = modalWindow(9, "1", 12);
   const complete = modalWindow(9, "complete");
 
   assert.deepEqual(panel.expectedDays.map(day => day.di), [11, 12, 13]);
   assert.deepEqual(panel.rows.map(row => row.di), [12, 13]);
   assert.deepEqual(rollingDays(14).map(day => day.di), [10, 11, 12, 13]);
   assert.equal(lastFourteen.range, "10/07/26 → 13/07/26");
+  assert.deepEqual(selectedDay.rows.map(row => row.di), [12]);
   assert.deepEqual(complete.rows.map(row => row.di), [10, 12, 13]);
   assert.equal(roiForDays(complete.rows, panel.expectedDays).coverage, 2);
+  assert.equal(roiForRow({ cost:0, profit:20 }), null);
+  assert.equal(roiText(null), "Sem custo");
+});
+
+test("the daily modal includes total cost and the requested ROI comparisons", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /Custo = gasto do Meta Ads \+ 13% de imposto/);
+  assert.match(source, /<th>Custo<\/th>/);
+  assert.match(source, /<th>D-1<\/th><th>D-2<\/th><th>Últ\. 7<\/th><th>Últ\. 14<\/th>/);
+  assert.match(source, /function closeDayModal/);
+  assert.match(source, /if \(event\.key === "Escape" && !state\.modal\)/);
 });
 
 test("opening and closing a campaign preserves the dashboard scroll position", async () => {

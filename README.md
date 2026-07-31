@@ -22,6 +22,10 @@ Next ou Cloudflare Worker.
 - Toda campanha abre o mesmo demonstrativo, seja selecionada no histórico, na
   fila de decisão ou no ranking. O demonstrativo possui filtros próprios, gráfico
   diário e tabela por dia, sem alterar o filtro principal nem a posição de rolagem.
+- Ao selecionar um dia no histórico mensal, a dashboard abre uma lista própria
+  das campanhas daquele dia. Ela mostra gasto, custo total (Meta Ads + 13%),
+  receita líquida (Gunn − 10%), lucro, ROI, status e comparativos; selecionar uma
+  linha abre o demonstrativo detalhado da campanha sem fechar a lista do dia.
 
 Os dados brutos de campanhas não são modificados pelo frontend. As alterações
 analíticas de banco ficam registradas em `supabase/migrations/`.
