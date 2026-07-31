@@ -40,6 +40,18 @@ test("filters, quality and campaign details preserve the dashboard safeguards", 
   assert.match(source, /event\.key==="Escape"/);
 });
 
+test("history is grouped by real calendar month and negative streak alerts stay concise", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /const monthLabel =/);
+  assert.match(source, /data-history-month/);
+  assert.match(source, /expandedMonth/);
+  assert.match(source, /Campanhas por mês/);
+  assert.doesNotMatch(source, /Dia \$\{day\.di\+1\}/);
+  assert.match(source, /detalhe:"ROI negativo, três dias consecutivos\."/);
+  assert.doesNotMatch(source, /últimos 3:/);
+  assert.match(source, /\.alert:has\(\.tag\.alerta\)/);
+});
+
 test("the action panel reserves space for impact without overlapping campaign names", async () => {
   const source = await dashboardSource();
   assert.match(source, /\.alert \{[^}]*grid-template-columns:max-content minmax\(0,1fr\) 58px/);
