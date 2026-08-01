@@ -27,7 +27,9 @@ export default {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "public, max-age=0, must-revalidate",
         "X-Content-Type-Options": "nosniff",
-        "Referrer-Policy": "strict-origin-when-cross-origin"
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Frame-Options": "DENY",
+        "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://akffepitbqqqgldxvtlf.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
       }
     });
   }
