@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://akffepitbqqqgldxvtlf.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="description" content="DASHFULL — performance diária com decisões claras." />
     <meta name="theme-color" content="#f4f7fb" />
     <title>DASHFULL · Performance diária</title>
@@ -328,10 +330,17 @@
         { id:"complete", label:"Histórico completo" }
       ];
 
+      const isoDate = value => {
+        const text = String(value ?? "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+        const parsed = new Date(`${text}T12:00:00Z`);
+        return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== text ? "" : text;
+      };
+
       const readHash = () => {
         const params = new URLSearchParams(location.hash.slice(1));
-        const start = params.get("ini") || "";
-        const end = params.get("fim") || "";
+        const start = isoDate(params.get("ini"));
+        const end = isoDate(params.get("fim"));
         const range = Number(params.get("p"));
         return start && end ? { range:7, start, end } : { range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"" };
       };
@@ -693,8 +702,8 @@
           <span class="filter-label">Período do painel</span>
           <div class="ranges">${QUICK_RANGES.map(value => `<button type="button" data-range="${value}" class="${!state.start && state.range === value ? "active" : ""}">${value} dias</button>`).join("")}</div>
           <div class="dates">
-            <label>De <input id="start" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${state.start}" /></label>
-            <label>Até <input id="end" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${state.end}" /></label>
+            <label>De <input id="start" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${escape(state.start)}" /></label>
+            <label>Até <input id="end" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${escape(state.end)}" /></label>
           </div>
         </section>
         <div class="workspace">
@@ -757,7 +766,7 @@
         }));
 
         ["start", "end"].forEach(id => document.getElementById(id)?.addEventListener("change", event => {
-          state[id] = event.target.value;
+          state[id] = isoDate(event.target.value);
           if (state.start && state.end) {
             if (state.start > state.end) [state.start, state.end] = [state.end, state.start];
             syncHash();
