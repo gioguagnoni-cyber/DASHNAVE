@@ -345,6 +345,28 @@ test("cost, revenue and concise negative-streak rules remain explicit", async ()
   assert.doesNotMatch(source, /últimos 3:/);
 });
 
+test("API failures carry diagnostic context instead of being swallowed", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /class ApiError extends Error/);
+  assert.match(source, /const reportError = \(context, error\)/);
+  assert.match(source, /console\.error\(`\[DASHFULL\] \$\{context\}`, error\)/);
+  assert.match(source, /timedOut:true/);
+  assert.match(source, /Resposta \$\{response\.status\} \$\{response\.statusText\}/);
+  assert.match(source, /Resposta inválida \(JSON\)/);
+  assert.match(source, /if \(!Array\.isArray\(page\)\) throw new ApiError/);
+  assert.doesNotMatch(source, /\}\s*catch\s*\{/);
+  assert.doesNotMatch(source, /\.catch\(\(\) =>\s*\{/);
+});
+
+test("background work reports failures and never becomes an unhandled rejection", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /reportError\(`enrichDashboard: rpc \$\{names\[index\]\}`, result\.reason\)/);
+  assert.match(source, /void enrichDashboard\(first, last, requestId\)\.catch\(/);
+  assert.match(source, /window\.addEventListener\("unhandledrejection"/);
+  assert.match(source, /window\.addEventListener\("error"/);
+  assert.match(source, /document\.getElementById\("retry"\)\?\.addEventListener/);
+});
+
 test("the action panel reserves space for impact without overlapping campaign names", async () => {
   const source = await dashboardSource();
   assert.match(source, /\.alert \{[\s\S]*?grid-template-columns:max-content minmax\(0,1fr\) 58px/);

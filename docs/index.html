@@ -397,17 +397,45 @@
       const statusClass = value => value === "3 dias negativos" ? "alerta" : ["lucro","negativo","quase","aguardando","pausar","reduzir","escalar","investigar"].includes(value) ? value : "sem-status";
       const escape = value => String(value ?? "").replace(/[&<>'\"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[char]);
 
+      class ApiError extends Error {
+        constructor(message, details = {}) {
+          super(message);
+          this.name = "ApiError";
+          Object.assign(this, details);
+        }
+      }
+      const reportError = (context, error) => {
+        console.error(`[DASHFULL] ${context}`, error);
+        return error;
+      };
       const api = async (path, options = {}, timeout = 7000) => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);
         try {
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-            ...options,
-            signal:controller.signal,
-            headers:{ apikey:SUPABASE_KEY, "Content-Type":"application/json", ...options.headers }
-          });
-          if (!response.ok) throw new Error("Não foi possível carregar os dados.");
-          return response.json();
+          let response;
+          try {
+            response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+              ...options,
+              signal:controller.signal,
+              headers:{ apikey:SUPABASE_KEY, "Content-Type":"application/json", ...options.headers }
+            });
+          } catch (error) {
+            if (error?.name === "AbortError") throw new ApiError(`Tempo esgotado após ${timeout}ms ao consultar ${path}.`, { path, timeout, timedOut:true, cause:error });
+            throw new ApiError(`Falha de rede ao consultar ${path}.`, { path, cause:error });
+          }
+          if (!response.ok) {
+            const body = await response.text().catch(() => "");
+            throw new ApiError(`Resposta ${response.status} ${response.statusText} ao consultar ${path}.`, {
+              path,
+              status:response.status,
+              body:body.slice(0, 300)
+            });
+          }
+          try {
+            return await response.json();
+          } catch (error) {
+            throw new ApiError(`Resposta inválida (JSON) ao consultar ${path}.`, { path, cause:error });
+          }
         } finally {
           clearTimeout(timer);
         }
@@ -417,6 +445,7 @@
         const separator = path.includes("?") ? "&" : "?";
         for (let offset = 0; ; offset += PAGE_SIZE) {
           const page = await api(`${path}${separator}limit=${PAGE_SIZE}&offset=${offset}`, {}, 10000);
+          if (!Array.isArray(page)) throw new ApiError(`Resposta inesperada (lista esperada) ao paginar ${path}.`, { path, offset });
           rows.push(...page);
           if (page.length < PAGE_SIZE) return rows;
         }
@@ -819,7 +848,7 @@
           }))
           .catch(error => {
             state.monthCache.delete(key);
-            throw error;
+            throw reportError(`loadMonthData(${key})`, error);
           });
         state.monthCache.set(key, request);
         const result = await request;
@@ -834,7 +863,7 @@
         const request = apiAll(`v_daily?typ=eq.msgs&campaign_id=eq.${id}&select=${DAILY_FIELDS}&order=date.asc`)
           .catch(error => {
             state.campaignCache.delete(key);
-            throw error;
+            throw reportError(`loadCampaignData(${key})`, error);
           });
         state.campaignCache.set(key, request);
         const result = await request;
@@ -1272,7 +1301,8 @@
           route.data = data;
           route.loading = false;
           if (currentRoute() === route) renderNavigationModal();
-        }).catch(() => {
+        }).catch(error => {
+          reportError(`openMonthModal(${key})`, error);
           route.loading = false;
           route.error = true;
           if (currentRoute() === route) renderNavigationModal();
@@ -1310,7 +1340,8 @@
           route.rows = rows;
           route.loading = false;
           if (currentRoute() === route) renderNavigationModal();
-        }).catch(() => {
+        }).catch(error => {
+          reportError(`openCampaignModal(${id})`, error);
           route.loading = false;
           route.error = true;
           if (currentRoute() === route) renderNavigationModal();
@@ -1318,11 +1349,15 @@
       }
 
       async function enrichDashboard(first, last, requestId) {
+        const names = ["campaign_ranking", "operational_alerts", "data_quality_status"];
         const results = await Promise.allSettled([
           rpc("campaign_ranking", { di_ini:first, di_fim:last, min_spend:150, roi_meta:20, exclude_prefix:null }),
           rpc("operational_alerts", { di_ini:first, di_fim:last, min_spend:150, roi_meta:20 }),
           rpc("data_quality_status", { di_ini:first, di_fim:last })
         ]);
+        results.forEach((result, index) => {
+          if (result.status === "rejected") reportError(`enrichDashboard: rpc ${names[index]}`, result.reason);
+        });
         if (requestId !== state.loadId || !state.data) return;
 
         const [rankingResult, alertsResult, qualityResult] = results;
@@ -1355,11 +1390,12 @@
           if (requestId !== state.loadId) return;
           state.data = deriveDashboard(daily);
           render({ preserveScroll:Boolean(options.preserveScroll) });
-          void enrichDashboard(first, last, requestId);
-        } catch {
+          void enrichDashboard(first, last, requestId).catch(error => reportError("enrichDashboard", error));
+        } catch (error) {
+          reportError("load", error);
           if (requestId !== state.loadId) return;
           APP.innerHTML = '<section class="message"><h2>Não foi possível atualizar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';
-          document.getElementById("retry").addEventListener("click", start);
+          document.getElementById("retry")?.addEventListener("click", start);
         }
       }
 
@@ -1369,11 +1405,15 @@
           state.days = await api("days?select=di,date,label,badge&order=di.asc");
           syncHash();
           await load();
-        } catch {
+        } catch (error) {
+          reportError("start", error);
           APP.innerHTML = '<section class="message"><h2>Não foi possível iniciar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';
-          document.getElementById("retry").addEventListener("click", start);
+          document.getElementById("retry")?.addEventListener("click", start);
         }
       }
+
+      window.addEventListener("unhandledrejection", event => reportError("unhandledrejection", event.reason));
+      window.addEventListener("error", event => reportError("uncaught error", event.error || event.message));
 
       window.addEventListener("hashchange", () => {
         const next = readHash();
@@ -1381,7 +1421,7 @@
         state.range = next.range;
         state.start = next.start;
         state.end = next.end;
-        if (state.days.length) load({ preserveScroll:true });
+        if (state.days.length) load({ preserveScroll:true }).catch(error => reportError("load (hashchange)", error));
       });
 
       start();
