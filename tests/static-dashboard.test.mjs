@@ -24,7 +24,7 @@ async function dashboardHelpers() {
     "history",
     `${stoppedScript}
       return {
-        state, calendarDays, comparisonCell, isoShift, modalWindow,
+        state, calendarDays, comparisonCell, dayCampaignRows, isoShift, modalWindow,
         monthBounds, monthCoverage, monthSummary, roiForDays, roiForRow, sortRows,
         roiText, totalRoi, totals
       };`
@@ -217,6 +217,57 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
   assert.match(dayMarkup, /sortableHead\("Status"/);
   assert.match(dayMarkup, /nenhum gasto do Meta Ads está registrado para este dia/);
   assert.match(dayMarkup, /confirme o arquivo do Meta Ads antes de interpretar como retorno real/);
+});
+
+test("day popup exposes a persistent search field, an active-filter subtitle and an empty state", async () => {
+  const source = await dashboardSource();
+  const dayMarkup = source.slice(
+    source.indexOf("function dayModalMarkup"),
+    source.indexOf("function campaignMeta")
+  );
+  assert.match(dayMarkup, /class="table-tools"><input data-day-search value="\$\{escape\(route\.search \|\| ""\)\}"/);
+  assert.match(dayMarkup, /aria-label="Buscar campanha no dia"/);
+  assert.match(dayMarkup, /filtro "\$\{escape\(route\.search\)\}" ativo/);
+  assert.match(dayMarkup, /Nenhuma campanha corresponde a "\$\{escape\(route\.search \|\| ""\)\}" neste dia/);
+  assert.match(dayMarkup, /colspan="14"/);
+
+  const openDaySource = source.slice(
+    source.indexOf("function openDayFromMonth"),
+    source.indexOf("function openCampaignModal")
+  );
+  assert.match(openDaySource, /search:""/);
+
+  const renderModalSource = source.slice(
+    source.indexOf("function renderNavigationModal"),
+    source.indexOf("function openMonthModal")
+  );
+  assert.match(renderModalSource, /root\.querySelector\("\[data-day-search\]"\)/);
+  assert.match(renderModalSource, /route\.search = event\.target\.value/);
+  assert.match(renderModalSource, /restored\.setSelectionRange\(cursor, cursor\)/);
+});
+
+test("dayCampaignRows filters by label, suffix and niche so the day popup search matches the ranking search", async () => {
+  const { dayCampaignRows } = await dashboardHelpers();
+  const contextRows = [
+    { di:5, date:"2026-07-05", campaign_id:1, label:"MX Broad A", suffix:"MX01", niche:"saude", spend:10, cost:11, cap_rev:5, broad_rev:5, rev:10, rev_adj:9, profit:-2 },
+    { di:5, date:"2026-07-05", campaign_id:2, label:"BR Cap B", suffix:"BR02", niche:"financas", spend:20, cost:22, cap_rev:12, broad_rev:8, rev:20, rev_adj:18, profit:-4 },
+    { di:6, date:"2026-07-06", campaign_id:3, label:"MX Cap C", suffix:"MX03", niche:"saude", spend:5, cost:6, cap_rev:3, broad_rev:2, rev:5, rev_adj:4.5, profit:-1 }
+  ];
+  const route = { di:5, contextRows, search:"" };
+
+  assert.deepEqual(dayCampaignRows(route).map(row => row.campaign_id), [1, 2]);
+
+  route.search = "MX";
+  assert.deepEqual(dayCampaignRows(route).map(row => row.campaign_id), [1]);
+
+  route.search = "financas";
+  assert.deepEqual(dayCampaignRows(route).map(row => row.campaign_id), [2]);
+
+  route.search = "  mx  ";
+  assert.deepEqual(dayCampaignRows(route).map(row => row.campaign_id), [1], "search should be case-insensitive and tolerate surrounding whitespace");
+
+  route.search = "nenhuma campanha bate com isso";
+  assert.deepEqual(dayCampaignRows(route), []);
 });
 
 test("campaign history table breaks revenue into cap/broad/gross/net columns", async () => {

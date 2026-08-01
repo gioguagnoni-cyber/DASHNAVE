@@ -872,7 +872,10 @@
       }
 
       function dayCampaignRows(route) {
-        const rows = route.contextRows.filter(row => number(row.di) === number(route.di));
+        const term = (route.search || "").toLocaleLowerCase("pt-BR").trim();
+        const rows = route.contextRows
+          .filter(row => number(row.di) === number(route.di))
+          .filter(row => !term || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(term));
         return rows.map(row => {
           const history = route.contextRows.filter(item => Number(item.campaign_id) === Number(row.campaign_id));
           return {
@@ -1081,7 +1084,7 @@
         return `<div class="modal-heading">
             <p class="eyebrow">CAMPANHAS DO DIA</p>
             <h2 class="detail-name" id="nav-modal-title">${date(day?.date)}</h2>
-            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha rodou" : "campanhas rodaram"} neste dia. Clique em uma campanha para abrir o demonstrativo completo.</p>
+            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha rodou" : "campanhas rodaram"} neste dia${route.search ? ` · filtro "${escape(route.search)}" ativo` : ""}. Clique em uma campanha para abrir o demonstrativo completo.</p>
           </div>
           <div class="detail-metrics" aria-label="Resumo financeiro de ${date(day?.date)}">
             <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
@@ -1095,6 +1098,7 @@
           </div>
           ${missingMetaSpend ? '<p class="coverage-warning"><strong>Atenção:</strong> nenhum gasto do Meta Ads está registrado para este dia. O símbolo ∞ indica receita com custo zerado na base; confirme o arquivo do Meta Ads antes de interpretar como retorno real.</p>' : ""}
           <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
+          <div class="table-tools"><input data-day-search value="${escape(route.search || "")}" placeholder="Buscar campanha, nicho ou código (ex: MX)" aria-label="Buscar campanha no dia" /></div>
           <div class="scroller" data-route-scroller><table class="day-table"><thead><tr>
             ${sortableHead("Campanha", "label", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
@@ -1111,7 +1115,7 @@
             ${sortableHead("Últ. 14", "last14", route.sort)}
             ${sortableHead("Status", "status", route.sort)}
           </tr></thead><tbody>
-            ${rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-day-campaign="${row.campaign_id}" aria-label="Abrir detalhes de ${escape(row.label)}">
+            ${rows.length ? rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-day-campaign="${row.campaign_id}" aria-label="Abrir detalhes de ${escape(row.label)}">
               <td class="campaign">${escape(row.label)}</td>
               <td>${moneyPrecise(row.spend)}</td>
               <td>${moneyPrecise(row.cost)}</td>
@@ -1126,7 +1130,7 @@
               <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
               <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
               <td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td>
-            </tr>`).join("")}
+            </tr>`).join("") : `<tr><td colspan="14"><div class="empty">Nenhuma campanha corresponde a "${escape(route.search || "")}" neste dia.</div></td></tr>`}
           </tbody></table></div>`;
       }
 
@@ -1225,6 +1229,19 @@
           route.sort = { key, direction:route.sort.key === key && route.sort.direction === "asc" ? "desc" : "asc" };
           renderNavigationModal();
         }));
+        const daySearchInput = root.querySelector("[data-day-search]");
+        if (daySearchInput) {
+          daySearchInput.addEventListener("input", event => {
+            route.search = event.target.value;
+            const cursor = event.target.selectionStart;
+            renderNavigationModal();
+            const restored = document.querySelector("[data-day-search]");
+            if (restored) {
+              restored.focus();
+              restored.setSelectionRange(cursor, cursor);
+            }
+          });
+        }
         root.querySelectorAll("[data-month-day]").forEach(row => activateDrillRow(row, () => openDayFromMonth(Number(row.dataset.monthDay))));
         root.querySelectorAll("[data-day-campaign]").forEach(row => activateDrillRow(row, () => openCampaignModal(Number(row.dataset.dayCampaign), row, { scope:"1", anchorDi:route.di })));
         root.querySelectorAll("[data-modal-scope]").forEach(button => button.addEventListener("click", () => {
@@ -1269,7 +1286,8 @@
           kind:"day",
           di,
           contextRows:parent.data.contextRows,
-          sort:{ key:"label", direction:"asc" }
+          sort:{ key:"label", direction:"asc" },
+          search:""
         });
       }
 
