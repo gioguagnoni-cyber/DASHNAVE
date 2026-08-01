@@ -397,6 +397,20 @@
       const statusClass = value => value === "3 dias negativos" ? "alerta" : ["lucro","negativo","quase","aguardando","pausar","reduzir","escalar","investigar"].includes(value) ? value : "sem-status";
       const escape = value => String(value ?? "").replace(/[&<>'\"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", "\"":"&quot;" })[char]);
 
+      const roiPercent = (profit, cost, fallback = 0) => number(cost) ? number(profit) / number(cost) * 100 : fallback;
+      const groupBy = (items, keyFn) => {
+        const groups = new Map();
+        items.forEach(item => {
+          const key = keyFn(item);
+          const bucket = groups.get(key);
+          if (bucket) bucket.push(item);
+          else groups.set(key, [item]);
+        });
+        return groups;
+      };
+      const campaignSearchText = row => `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR");
+      const matchesCampaignQuery = (row, term) => !term || campaignSearchText(row).includes(term);
+
       const api = async (path, options = {}, timeout = 7000) => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);
@@ -448,17 +462,14 @@
         broadRev:all.broadRev + number(row.broad_rev)
       }), { spend:0, cost:0, gross:0, revenue:0, profit:0, capRev:0, broadRev:0 });
 
-      const dailyRoi = row => {
-        const cost = number(row.cost);
-        return cost ? number(row.profit) / cost * 100 : 0;
-      };
+      const dailyRoi = row => roiPercent(row.profit, row.cost, 0);
       const roiForRow = row => number(row.cost) ? dailyRoi(row) : null;
       const infinityRoi = '<span class="infinite-roi" title="Receita com custo zerado" aria-label="Infinito: receita com custo zerado">∞</span>';
       const roiText = value => value === null || value === undefined ? infinityRoi : pct(value);
       const totalRoi = rows => {
         if (!rows.length) return null;
         const all = totals(rows);
-        return all.cost ? all.profit / all.cost * 100 : null;
+        return roiPercent(all.profit, all.cost, null);
       };
       const compareValues = (first, second, direction) => {
         const aMissing = first === null || first === undefined || Number.isNaN(first);
@@ -481,23 +492,19 @@
       };
 
       function deriveDashboard(daily) {
-        const groups = new Map();
-        daily.forEach(row => {
-          const group = groups.get(row.campaign_id) || { campaign_id:row.campaign_id, label:row.label, suffix:row.suffix, niche:row.niche, rows:[] };
-          group.rows.push(row);
-          groups.set(row.campaign_id, group);
-        });
+        const groups = groupBy(daily, row => row.campaign_id);
 
         const alerts = [];
-        const ranking = [...groups.values()].map(group => {
-          const rows = group.rows.slice().sort((a, b) => number(a.di) - number(b.di));
+        const ranking = [...groups.values()].map(bucket => {
+          const group = bucket[0];
+          const rows = bucket.slice().sort((a, b) => number(a.di) - number(b.di));
           const all = totals(rows);
-          const roi = all.cost ? all.profit / all.cost * 100 : 0;
+          const roi = roiPercent(all.profit, all.cost, 0);
           const midpoint = Math.ceil(rows.length / 2);
           const first = totals(rows.slice(0, midpoint));
           const last = totals(rows.slice(midpoint));
-          const firstRoi = first.cost ? first.profit / first.cost * 100 : 0;
-          const lastRoi = last.cost ? last.profit / last.cost * 100 : 0;
+          const firstRoi = roiPercent(first.profit, first.cost, 0);
+          const lastRoi = roiPercent(last.profit, last.cost, 0);
           const tendencia = rows.length < 2 ? "indefinida" : lastRoi - firstRoi > 2 ? "subindo" : firstRoi - lastRoi > 2 ? "caindo" : "estável";
           const recomendacao = all.cost >= 150 && roi < 0 ? "pausar" : all.cost >= 150 && roi >= 20 ? "escalar" : "acompanhar";
           let streak = [];
@@ -546,7 +553,7 @@
               cost:portfolio.cost,
               rev_adj:portfolio.revenue,
               profit:portfolio.profit,
-              roi:portfolio.cost ? portfolio.profit / portfolio.cost * 100 : 0,
+              roi:roiPercent(portfolio.profit, portfolio.cost, 0),
               campanhas:groups.size
             }
           },
@@ -658,7 +665,7 @@
           cost:number(portfolio.cost || fallback.cost),
           revenue:number(portfolio.rev_adj || fallback.revenue),
           profit:number(portfolio.profit || fallback.profit),
-          roi:number(portfolio.roi ?? (fallback.cost ? fallback.profit / fallback.cost * 100 : 0))
+          roi:number(portfolio.roi ?? roiPercent(fallback.profit, fallback.cost, 0))
         };
         const count = number(portfolio.campanhas) || new Set(all.map(row => row.campaign_id)).size;
         const quality = data?.quality || {};
@@ -676,7 +683,7 @@
         const ranking = sortRows(
           (data?.ranking || [])
             .map(row => ({ ...row, ...(revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 }) }))
-            .filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR"))),
+            .filter(row => matchesCampaignQuery(row, state.query.toLocaleLowerCase("pt-BR"))),
           state.rankingSort,
           { action:row => row.recomendacao || "acompanhar", trend:row => row.tendencia || "indefinida" }
         );
@@ -797,64 +804,48 @@
         && first.every((day, index) => day.date === second[index]?.date);
       const rowsForDate = (rows, target) => rows.filter(row => row.date === target);
       const rowsForRange = (rows, start, end) => rows.filter(row => row.date >= start && row.date <= end);
-      const roiForDate = (rows, target) => {
-        const picked = rowsForDate(rows, target);
-        return picked.length ? totalRoi(picked) : undefined;
-      };
-      const roiForRange = (rows, start, end) => {
-        const picked = rowsForRange(rows, start, end);
-        return picked.length ? totalRoi(picked) : undefined;
-      };
+      const roiForPicked = picked => picked.length ? totalRoi(picked) : undefined;
+      const roiForDate = (rows, target) => roiForPicked(rowsForDate(rows, target));
+      const roiForRange = (rows, start, end) => roiForPicked(rowsForRange(rows, start, end));
       const comparisonCell = value => value === undefined ? "—" : roiText(value);
 
-      async function loadMonthData(key) {
-        const cached = state.monthCache.get(key);
+      async function cachedRequest(cache, key, factory) {
+        const cached = cache.get(key);
         if (cached) return await cached;
-        const bounds = monthBounds(key);
-        const request = apiAll(`v_daily?typ=eq.msgs&date=gte.${bounds.contextStart}&date=lt.${bounds.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`)
-          .then(contextRows => ({
-            contextRows,
-            monthRows:contextRows.filter(row => row.date >= bounds.start && row.date < bounds.end),
-            bounds
-          }))
-          .catch(error => {
-            state.monthCache.delete(key);
-            throw error;
-          });
-        state.monthCache.set(key, request);
+        const request = factory().catch(error => {
+          cache.delete(key);
+          throw error;
+        });
+        cache.set(key, request);
         const result = await request;
-        state.monthCache.set(key, result);
+        cache.set(key, result);
         return result;
+      }
+
+      async function loadMonthData(key) {
+        const bounds = monthBounds(key);
+        return cachedRequest(state.monthCache, key, () =>
+          apiAll(`v_daily?typ=eq.msgs&date=gte.${bounds.contextStart}&date=lt.${bounds.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`)
+            .then(contextRows => ({
+              contextRows,
+              monthRows:contextRows.filter(row => row.date >= bounds.start && row.date < bounds.end),
+              bounds
+            })));
       }
 
       async function loadCampaignData(id) {
-        const key = String(id);
-        const cached = state.campaignCache.get(key);
-        if (cached) return await cached;
-        const request = apiAll(`v_daily?typ=eq.msgs&campaign_id=eq.${id}&select=${DAILY_FIELDS}&order=date.asc`)
-          .catch(error => {
-            state.campaignCache.delete(key);
-            throw error;
-          });
-        state.campaignCache.set(key, request);
-        const result = await request;
-        state.campaignCache.set(key, result);
-        return result;
+        return cachedRequest(state.campaignCache, String(id), () =>
+          apiAll(`v_daily?typ=eq.msgs&campaign_id=eq.${id}&select=${DAILY_FIELDS}&order=date.asc`));
       }
 
       function monthSummary(data) {
-        const grouped = new Map();
-        data.monthRows.forEach(row => {
-          const group = grouped.get(row.date) || { date:row.date, di:row.di, rows:[] };
-          group.rows.push(row);
-          grouped.set(row.date, group);
-        });
-        return [...grouped.values()].map(group => {
-          const metrics = totals(group.rows);
+        return [...groupBy(data.monthRows, row => row.date).values()].map(rows => {
+          const group = rows[0];
+          const metrics = totals(rows);
           return {
             date:group.date,
             di:group.di,
-            campaigns:new Set(group.rows.map(row => row.campaign_id)).size,
+            campaigns:new Set(rows.map(row => row.campaign_id)).size,
             spend:metrics.spend,
             cost:metrics.cost,
             cap_rev:metrics.capRev,
@@ -862,7 +853,7 @@
             rev:metrics.gross,
             rev_adj:metrics.revenue,
             profit:metrics.profit,
-            roi:metrics.cost ? metrics.profit / metrics.cost * 100 : null,
+            roi:roiPercent(metrics.profit, metrics.cost, null),
             d1:roiForDate(data.contextRows, isoShift(group.date, -1)),
             d2:roiForDate(data.contextRows, isoShift(group.date, -2)),
             last7:roiForRange(data.contextRows, isoShift(group.date, -6), group.date),
@@ -875,7 +866,7 @@
         const term = (route.search || "").toLocaleLowerCase("pt-BR").trim();
         const rows = route.contextRows
           .filter(row => number(row.di) === number(route.di))
-          .filter(row => !term || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(term));
+          .filter(row => matchesCampaignQuery(row, term));
         return rows.map(row => {
           const history = route.contextRows.filter(item => Number(item.campaign_id) === Number(row.campaign_id));
           return {
@@ -932,7 +923,7 @@
         const picked = rows.filter(row => expectedDates.has(row.date));
         const all = totals(picked);
         const coverage = new Set(picked.map(row => row.date)).size;
-        return picked.length ? { roi:all.cost ? all.profit / all.cost * 100 : null, coverage, requested:days.length } : null;
+        return picked.length ? { roi:roiPercent(all.profit, all.cost, null), coverage, requested:days.length } : null;
       }
 
       function compare(label, value) {
@@ -1077,7 +1068,7 @@
         const day = state.days.find(item => number(item.di) === number(route.di));
         const rawRows = route.contextRows.filter(row => number(row.di) === number(route.di));
         const metrics = totals(rawRows);
-        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
+        const roi = roiPercent(metrics.profit, metrics.cost, null);
         const missingMetaSpend = rawRows.length > 0 && metrics.spend === 0 && metrics.gross > 0;
         const getters = { roi:row => row.calculatedRoi, d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(dayCampaignRows(route), route.sort, getters);
@@ -1145,7 +1136,7 @@
         const selected = modalWindow(route.rows, route.scope, route.anchorDi);
         const campaign = campaignMeta(route.id, route.rows);
         const metrics = totals(selected.rows);
-        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
+        const roi = roiPercent(metrics.profit, metrics.cost, null);
         const latest = selected.rows.at(-1);
         const coverage = new Set(selected.rows.map(row => row.date)).size;
         const scopeButtons = MODAL_SCOPES.map(item => `<button type="button" data-modal-scope="${item.id}" class="${route.scope === item.id ? "active" : ""}" ${route.loading && item.id !== "panel" ? "disabled" : ""}>${item.label}</button>`).join("");
@@ -1256,6 +1247,19 @@
         if (options.focusPrimary) (state.modalStack.length > 1 ? root.querySelector(".modal-back") : root.querySelector(".modal-close"))?.focus({ preventScroll:true });
       }
 
+      function settleRoute(route, promise, apply) {
+        const rerender = () => { if (currentRoute() === route) renderNavigationModal(); };
+        promise.then(value => {
+          apply(value);
+          route.loading = false;
+          rerender();
+        }, () => {
+          route.loading = false;
+          route.error = true;
+          rerender();
+        });
+      }
+
       function openMonthModal(key, opener) {
         closeNavigationModal({ restoreFocus:false });
         const route = {
@@ -1268,15 +1272,7 @@
           sort:{ key:"date", direction:"asc" }
         };
         pushModalRoute(route, opener);
-        loadMonthData(key).then(data => {
-          route.data = data;
-          route.loading = false;
-          if (currentRoute() === route) renderNavigationModal();
-        }).catch(() => {
-          route.loading = false;
-          route.error = true;
-          if (currentRoute() === route) renderNavigationModal();
-        });
+        settleRoute(route, loadMonthData(key), data => { route.data = data; });
       }
 
       function openDayFromMonth(di) {
@@ -1306,15 +1302,7 @@
           sort:{ key:"date", direction:"asc" }
         };
         pushModalRoute(route, opener);
-        loadCampaignData(id).then(rows => {
-          route.rows = rows;
-          route.loading = false;
-          if (currentRoute() === route) renderNavigationModal();
-        }).catch(() => {
-          route.loading = false;
-          route.error = true;
-          if (currentRoute() === route) renderNavigationModal();
-        });
+        settleRoute(route, loadCampaignData(id), rows => { route.rows = rows; });
       }
 
       async function enrichDashboard(first, last, requestId) {
