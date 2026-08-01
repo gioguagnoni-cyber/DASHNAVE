@@ -7,8 +7,8 @@
   },
   "scripts": {
     "build:sites": "node scripts/build-sites.mjs",
-    "test": "node --test tests/static-dashboard.test.mjs",
-    "lint": "node --check tests/static-dashboard.test.mjs"
+    "test": "node --test tests/",
+    "lint": "node --check tests/static-dashboard.test.mjs && node --check tests/dashboard-helpers.test.mjs && node --check tests/build-sites.test.mjs && node --check tests/helpers/dashboard-runtime.mjs"
   },
   "type": "module"
 }
