@@ -52,27 +52,84 @@
       .eyebrow { margin:0 0 2px; color:var(--blue); font-size:10px; font-weight:800; letter-spacing:.13em; }
       h1 { margin:0; font-size:22px; line-height:1; letter-spacing:-.045em; }
       .subtitle { margin:5px 0 0; color:var(--muted); font-size:12px; }
-      .public {
-        border:1px solid #cde8da;
-        border-radius:999px;
-        padding:6px 10px;
-        background:#f2fcf7;
-        color:#087854;
-        font-size:12px;
-        font-weight:700;
+      .date-control { position:relative; z-index:30; }
+      .date-trigger {
+        display:flex;
+        align-items:center;
+        gap:9px;
+        border:1px solid var(--line);
+        border-radius:11px;
+        padding:8px 11px;
+        background:#fff;
+        color:#40516a;
+        box-shadow:0 4px 14px #2034540a;
+        font-size:11px;
+        font-weight:800;
         white-space:nowrap;
       }
+      .date-trigger:hover { border-color:#bdcdf0; color:var(--blue); }
+      .calendar-icon { position:relative; width:17px; height:16px; border:2px solid currentColor; border-radius:4px; }
+      .calendar-icon::before { content:""; position:absolute; top:3px; right:-2px; left:-2px; border-top:2px solid currentColor; }
+      .calendar-icon::after { content:""; position:absolute; top:-4px; left:3px; width:7px; height:4px; border-right:2px solid currentColor; border-left:2px solid currentColor; }
+      .date-picker-backdrop { position:fixed; z-index:31; inset:0; background:#0f1b2b29; }
+      .date-picker {
+        position:absolute;
+        z-index:32;
+        top:calc(100% + 10px);
+        right:0;
+        display:grid;
+        width:min(820px,calc(100vw - 32px));
+        grid-template-columns:190px minmax(0,1fr);
+        overflow:hidden;
+        border:1px solid var(--line);
+        border-radius:16px;
+        background:#fff;
+        box-shadow:0 24px 70px #17263d38;
+      }
+      .date-presets { display:flex; flex-direction:column; gap:2px; border-right:1px solid var(--line); padding:15px 10px; background:#f8faff; }
+      .date-presets h2 { margin:0 8px 9px; color:#40516a; font-size:12px; }
+      .date-presets button { border:0; border-radius:8px; padding:7px 9px; background:transparent; color:#526277; font-size:11px; font-weight:700; text-align:left; }
+      .date-presets button:hover,.date-presets button.active { background:var(--blue-soft); color:var(--blue); }
+      .date-custom { min-width:0; padding:15px; }
+      .date-fields { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; margin-bottom:13px; }
+      .date-fields span { min-width:0; border:1px solid var(--line); border-radius:9px; padding:7px 9px; background:#fbfcfe; }
+      .date-fields small,.date-fields strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .date-fields small { color:var(--muted); font-size:8px; font-weight:700; text-transform:uppercase; }
+      .date-fields strong { margin-top:2px; color:#33445d; font-size:11px; }
+      .date-fields i { color:#9aa7b8; font-style:normal; }
+      .calendar-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; color:var(--muted); font-size:10px; font-weight:700; }
+      .calendar-nav button { display:grid; width:28px; height:28px; place-items:center; border:1px solid var(--line); border-radius:50%; background:#fff; color:#526277; }
+      .calendar-nav button:disabled { cursor:not-allowed; opacity:.35; }
+      .calendars { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+      .calendar-panel h3 { margin:0 0 7px; color:#33445d; font-size:11px; text-align:center; }
+      .calendar-weekdays,.calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+      .calendar-weekdays { margin-bottom:3px; color:#8a97a8; font-size:8px; font-weight:800; text-align:center; }
+      .calendar-day,.calendar-empty { position:relative; display:grid; min-width:0; aspect-ratio:1; place-items:center; border:0; border-radius:50%; background:transparent; color:#43536a; font-size:10px; }
+      .calendar-day:hover:not(:disabled) { background:var(--blue-soft); color:var(--blue); }
+      .calendar-day.in-range { border-radius:7px; background:#eef3ff; }
+      .calendar-day.selected { background:var(--blue); color:#fff; font-weight:800; }
+      .calendar-day:disabled { cursor:not-allowed; color:#c9d1dc; }
+      .calendar-day.has-data::after { content:""; position:absolute; bottom:3px; width:3px; height:3px; border-radius:50%; background:var(--green); }
+      .calendar-day.selected::after { background:#fff; }
+      .calendar-day.no-data:not(:disabled) { color:#9da9b8; }
+      .date-picker-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:13px; border-top:1px solid #edf1f5; padding-top:12px; }
+      .date-picker-footer p { display:flex; align-items:center; gap:5px; margin:0; color:var(--muted); font-size:8px; }
+      .date-picker-footer p span { width:6px; height:6px; border-radius:50%; }
+      .legend-data { background:var(--green); }
+      .legend-empty { margin-left:5px; border:1px solid #aab5c3; background:#fff; }
+      .date-picker-footer > div { display:flex; gap:7px; }
+      .date-cancel,.date-apply { border:1px solid var(--line); border-radius:8px; padding:7px 11px; background:#fff; color:#526277; font-size:10px; font-weight:800; }
+      .date-apply { border-color:var(--blue); background:var(--blue); color:#fff; }
+      .date-apply:disabled { cursor:not-allowed; opacity:.42; }
 
-      .filters,.panel,.metric,.history,.message {
+      .panel,.metric,.history,.message {
         border:1px solid var(--line);
         border-radius:16px;
         background:var(--surface);
         box-shadow:0 5px 17px #20345408;
       }
-      .filters { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:13px 15px; }
-      .filter-label { color:var(--muted); font-size:12px; font-weight:750; }
-      .ranges,.modal-scopes { display:flex; flex-wrap:wrap; gap:7px; }
-      .ranges button,.modal-scopes button {
+      .modal-scopes { display:flex; flex-wrap:wrap; gap:7px; }
+      .modal-scopes button {
         border:1px solid var(--line);
         border-radius:8px;
         padding:6px 9px;
@@ -81,18 +138,8 @@
         font-size:12px;
         font-weight:700;
       }
-      .ranges button.active,.modal-scopes button.active { border-color:var(--blue); background:var(--blue); color:#fff; }
+      .modal-scopes button.active { border-color:var(--blue); background:var(--blue); color:#fff; }
       .modal-scopes button[disabled] { cursor:wait; opacity:.55; }
-      .dates { display:flex; gap:9px; margin-left:auto; }
-      .dates label { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; font-weight:700; }
-      .dates input {
-        min-width:124px;
-        border:1px solid var(--line);
-        border-radius:8px;
-        padding:5px 7px;
-        background:#fff;
-        color:var(--ink);
-      }
 
       .workspace { display:grid; grid-template-columns:minmax(286px,320px) minmax(0,1fr); align-items:start; gap:13px; margin-top:14px; }
       .main { min-width:0; }
@@ -203,6 +250,7 @@
       tr[data-campaign] { cursor:pointer; }
       tr[data-campaign]:hover { background:#f7faff; }
       .campaign { color:#1d4cb8; font-weight:800; }
+      .residual-label { display:block; margin-top:2px; color:#a66a13; font-size:9px; font-weight:500; line-height:1.15; white-space:nowrap; }
       .trend { color:#6b7b90; }
       .reco { display:inline-block; border-radius:999px; padding:3px 7px; background:#eff3f8; color:#64748b; font-size:10px; font-weight:800; }
       .reco.escalar { background:var(--green-soft); color:var(--green); }
@@ -274,6 +322,8 @@
       .modal-error { margin:18px 0 0; border:1px solid #f2ccd2; border-radius:10px; padding:13px; background:var(--red-soft); color:#9b3444; font-size:12px; }
       .coverage-warning { margin:10px 0 0; border:1px solid #f1da93; border-radius:9px; padding:9px 11px; background:var(--amber-soft); color:#775118; font-size:10px; }
       .coverage-warning + .tax-note { margin-top:9px; }
+      .residual-note { margin:10px 0 0; border-radius:9px; padding:8px 10px; background:#fff8e8; color:#8b611f; font-size:10px; }
+      .residual-note + .tax-note { margin-top:9px; }
       .tax-note { margin:0; color:var(--muted); font-size:10px; }
 
       @media (max-width:1220px) {
@@ -283,14 +333,21 @@
       @media (max-width:980px) {
         .workspace { grid-template-columns:1fr; }
         .history { position:static; max-height:520px; }
-        .dates { width:100%; margin-left:0; }
-        .dates label { flex:1; }
-        .dates input { width:100%; min-width:0; }
+      }
+      @media (max-width:760px) {
+        .date-picker { position:fixed; top:10px; right:10px; left:10px; width:auto; max-height:calc(100dvh - 20px); grid-template-columns:1fr; overflow:auto; }
+        .date-presets { flex-direction:row; overflow-x:auto; border-right:0; border-bottom:1px solid var(--line); padding:11px; }
+        .date-presets h2 { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+        .date-presets button { flex:0 0 auto; white-space:nowrap; }
+        .calendars { grid-template-columns:1fr; }
+        .calendar-primary { display:none; }
+        .calendar-day,.calendar-empty { max-height:40px; }
       }
       @media (max-width:650px) {
         .shell { padding-top:19px; }
         .topbar { align-items:flex-start; }
-        .public { font-size:10px; }
+        .date-trigger { width:42px; height:42px; justify-content:center; padding:0; }
+        .date-trigger-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
         .metrics { gap:9px; }
         .metric { min-height:116px; padding:13px; }
         .panel { padding:14px; }
@@ -314,11 +371,22 @@
     <script>
       const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
       const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
-      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude";
+      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude,residual";
       const APP = document.getElementById("app");
       const PAGE_SIZE = 500;
       const RANGE_VALUES = new Set([3,7,30]);
-      const QUICK_RANGES = [3,7,30];
+      const DATE_PRESETS = [
+        { id:"today", label:"Hoje" },
+        { id:"yesterday", label:"Ontem" },
+        { id:"last7", label:"Últimos 7 dias" },
+        { id:"last30", label:"Últimos 30 dias" },
+        { id:"last90", label:"Últimos 90 dias" },
+        { id:"thisMonth", label:"Este mês" },
+        { id:"lastMonth", label:"Mês passado" },
+        { id:"thisQuarter", label:"Este trimestre" },
+        { id:"thisYear", label:"Este ano" },
+        { id:"custom", label:"Personalizado" }
+      ];
       const MODAL_SCOPES = [
         { id:"panel", label:"Período do painel" },
         { id:"1", label:"1 dia" },
@@ -333,7 +401,9 @@
         const start = params.get("ini") || "";
         const end = params.get("fim") || "";
         const range = Number(params.get("p"));
-        return start && end ? { range:7, start, end } : { range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"" };
+        return start && end
+          ? { range:7, start, end, preset:"custom" }
+          : { range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"", preset:`last${RANGE_VALUES.has(range) ? range : 7}` };
       };
 
       const initialHash = readHash();
@@ -342,6 +412,12 @@
         range: initialHash.range,
         start: initialHash.start,
         end: initialHash.end,
+        preset: initialHash.preset,
+        datePickerOpen: false,
+        draftStart: initialHash.start,
+        draftEnd: initialHash.end,
+        draftPreset: initialHash.preset,
+        calendarMonth: (initialHash.start || new Date().toISOString().slice(0,10)).slice(0,7),
         data: null,
         query: "",
         monthCache: new Map(),
@@ -364,10 +440,42 @@
         const label = new Intl.DateTimeFormat("pt-BR", { month:"long", year:"numeric" }).format(new Date(`${value}T12:00:00`));
         return label.charAt(0).toUpperCase() + label.slice(1);
       };
+      const todayIso = () => {
+        const current = new Date();
+        return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2,"0")}-${String(current.getDate()).padStart(2,"0")}`;
+      };
       const isoShift = (value, amount) => {
         const shifted = new Date(`${value}T12:00:00Z`);
         shifted.setUTCDate(shifted.getUTCDate() + amount);
         return shifted.toISOString().slice(0, 10);
+      };
+      const monthShift = (key, amount) => {
+        const shifted = new Date(`${key}-01T12:00:00Z`);
+        shifted.setUTCMonth(shifted.getUTCMonth() + amount);
+        return shifted.toISOString().slice(0,7);
+      };
+      const periodForPreset = (preset, anchor = todayIso()) => {
+        const month = anchor.slice(0,7);
+        if (preset === "today") return { start:anchor, end:anchor };
+        if (preset === "yesterday") {
+          const yesterday = isoShift(anchor, -1);
+          return { start:yesterday, end:yesterday };
+        }
+        if (preset === "last7") return { start:isoShift(anchor, -6), end:anchor };
+        if (preset === "last30") return { start:isoShift(anchor, -29), end:anchor };
+        if (preset === "last90") return { start:isoShift(anchor, -89), end:anchor };
+        if (preset === "thisMonth") return { start:`${month}-01`, end:anchor };
+        if (preset === "lastMonth") {
+          const previous = monthShift(month, -1);
+          return { start:`${previous}-01`, end:isoShift(`${month}-01`, -1) };
+        }
+        if (preset === "thisQuarter") {
+          const parsed = new Date(`${anchor}T12:00:00Z`);
+          const quarterMonth = Math.floor(parsed.getUTCMonth() / 3) * 3 + 1;
+          return { start:`${parsed.getUTCFullYear()}-${String(quarterMonth).padStart(2,"0")}-01`, end:anchor };
+        }
+        if (preset === "thisYear") return { start:`${anchor.slice(0,4)}-01-01`, end:anchor };
+        return { start:state.draftStart || state.start, end:state.draftEnd || state.end };
       };
       const monthBounds = key => {
         const start = `${key}-01`;
@@ -425,18 +533,32 @@
 
       function syncHash() {
         const params = new URLSearchParams();
-        if (state.start && state.end) {
-          params.set("ini", state.start);
-          params.set("fim", state.end);
-        } else {
-          params.set("p", String(state.range));
-        }
+        params.set("ini", state.start);
+        params.set("fim", state.end);
         history.replaceState(null, "", `${location.pathname}${location.search}#${params}`);
+      }
+
+      function ensureInitialPeriod() {
+        const today = todayIso();
+        if (state.start && state.end) {
+          if (state.start > state.end) [state.start, state.end] = [state.end, state.start];
+          if (state.end > today) state.end = today;
+          if (state.start > today) state.start = state.end;
+          return;
+        }
+        const latestData = state.days.at(-1)?.date || today;
+        const anchor = latestData < today ? latestData : today;
+        state.end = anchor;
+        state.start = isoShift(anchor, -state.range + 1);
+        state.preset = state.range === 7 || state.range === 30 ? `last${state.range}` : "custom";
       }
 
       const selectedDays = () => state.start && state.end
         ? state.days.filter(day => day.date >= state.start && day.date <= state.end)
         : state.days.slice(-state.range);
+      const isResidual = row => row?.residual === true || row?.residual === "true";
+      const residualLabel = '<small class="residual-label">receita residual</small>';
+      const campaignName = row => `${escape(row.label)}${isResidual(row) ? residualLabel : ""}`;
 
       const totals = rows => rows.reduce((all, row) => ({
         spend:all.spend + number(row.spend),
@@ -482,7 +604,8 @@
 
       function deriveDashboard(daily) {
         const groups = new Map();
-        daily.forEach(row => {
+        const operationalDaily = daily.filter(row => !isResidual(row));
+        operationalDaily.forEach(row => {
           const group = groups.get(row.campaign_id) || { campaign_id:row.campaign_id, label:row.label, suffix:row.suffix, niche:row.niche, rows:[] };
           group.rows.push(row);
           groups.set(row.campaign_id, group);
@@ -638,6 +761,98 @@
         </aside>`;
       }
 
+      const longDate = value => new Intl.DateTimeFormat("pt-BR", {
+        day:"2-digit", month:"long", year:"numeric", timeZone:"UTC"
+      }).format(new Date(`${value}T12:00:00Z`));
+      const compactPeriod = (start, end) => {
+        if (!start || !end) return "Escolher período";
+        const startDate = new Date(`${start}T12:00:00Z`);
+        const endDate = new Date(`${end}T12:00:00Z`);
+        const sameYear = start.slice(0,4) === end.slice(0,4);
+        const sameMonth = start.slice(0,7) === end.slice(0,7);
+        if (start === end) return new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"short", year:"numeric", timeZone:"UTC" }).format(startDate);
+        if (sameMonth) return `${start.slice(8,10)}–${end.slice(8,10)} ${new Intl.DateTimeFormat("pt-BR", { month:"short", year:"numeric", timeZone:"UTC" }).format(endDate)}`;
+        if (sameYear) return `${new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"short", timeZone:"UTC" }).format(startDate)} – ${new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"short", year:"numeric", timeZone:"UTC" }).format(endDate)}`;
+        return `${date(start)} – ${date(end)}`;
+      };
+      const calendarCells = key => {
+        const first = new Date(`${key}-01T12:00:00Z`);
+        const offset = first.getUTCDay();
+        const next = new Date(first);
+        next.setUTCMonth(next.getUTCMonth() + 1);
+        const amount = Math.round((next - first) / 86400000);
+        return [
+          ...Array.from({ length:offset }, () => null),
+          ...Array.from({ length:amount }, (_, index) => `${key}-${String(index + 1).padStart(2,"0")}`)
+        ];
+      };
+      const calendarMarkup = (key, secondary = false) => {
+        const dataDates = new Set(state.days.map(day => day.date));
+        const today = todayIso();
+        const selectedStart = state.draftStart;
+        const selectedEnd = state.draftEnd;
+        const cells = calendarCells(key);
+        const weeks = Math.ceil(cells.length / 7);
+        while (cells.length < weeks * 7) cells.push(null);
+        return `<section class="calendar-panel ${secondary ? "calendar-secondary" : "calendar-primary"}">
+          <h3>${escape(monthLabel(`${key}-01`))}</h3>
+          <div class="calendar-weekdays" aria-hidden="true">${["D","S","T","Q","Q","S","S"].map(day => `<span>${day}</span>`).join("")}</div>
+          <div class="calendar-grid" role="grid" aria-label="${escape(monthLabel(`${key}-01`))}">
+            ${cells.map(value => {
+              if (!value) return '<span class="calendar-empty" aria-hidden="true"></span>';
+              const future = value > today;
+              const selected = value === selectedStart || value === selectedEnd;
+              const inRange = selectedStart && selectedEnd && value > selectedStart && value < selectedEnd;
+              const dataClass = dataDates.has(value) ? "has-data" : "no-data";
+              return `<button type="button" data-calendar-day="${value}" class="calendar-day ${dataClass} ${selected ? "selected" : ""} ${inRange ? "in-range" : ""}" ${future ? "disabled" : ""} aria-label="${longDate(value)}${dataDates.has(value) ? ", com dados" : ", sem dados importados"}" aria-pressed="${selected}">${Number(value.slice(8,10))}</button>`;
+            }).join("")}
+          </div>
+        </section>`;
+      };
+      const datePickerMarkup = () => {
+        if (!state.datePickerOpen) return "";
+        const secondMonth = monthShift(state.calendarMonth, 1);
+        const maxLeftMonth = monthShift(todayIso().slice(0,7), -1);
+        return `<div class="date-picker-backdrop" data-close-date-picker></div>
+          <section class="date-picker" role="dialog" aria-modal="true" aria-labelledby="date-picker-title">
+            <div class="date-presets">
+              <h2 id="date-picker-title">Período do painel</h2>
+              ${DATE_PRESETS.map(item => `<button type="button" data-date-preset="${item.id}" class="${state.draftPreset === item.id ? "active" : ""}">${item.label}</button>`).join("")}
+            </div>
+            <div class="date-custom">
+              <div class="date-fields" aria-label="Intervalo selecionado">
+                <span><small>Data de início</small><strong>${state.draftStart ? date(state.draftStart) : "Selecione"}</strong></span>
+                <i aria-hidden="true">→</i>
+                <span><small>Data de término</small><strong>${state.draftEnd ? date(state.draftEnd) : "Selecione"}</strong></span>
+              </div>
+              <div class="calendar-nav">
+                <button type="button" data-calendar-shift="-1" aria-label="Meses anteriores">←</button>
+                <span>Escolha o início e o fim</span>
+                <button type="button" data-calendar-shift="1" aria-label="Meses seguintes" ${state.calendarMonth >= maxLeftMonth ? "disabled" : ""}>→</button>
+              </div>
+              <div class="calendars">${calendarMarkup(state.calendarMonth)}${calendarMarkup(secondMonth, true)}</div>
+              <div class="date-picker-footer">
+                <p><span class="legend-data"></span>com dados <span class="legend-empty"></span>sem dados</p>
+                <div><button type="button" class="date-cancel" data-cancel-date-picker>Cancelar</button><button type="button" class="date-apply" data-apply-date-picker ${!state.draftStart || !state.draftEnd ? "disabled" : ""}>Aplicar</button></div>
+              </div>
+            </div>
+          </section>`;
+      };
+
+      function openDatePicker() {
+        state.draftStart = state.start;
+        state.draftEnd = state.end;
+        state.draftPreset = state.preset;
+        state.calendarMonth = monthShift((state.end || todayIso()).slice(0,7), -1);
+        state.datePickerOpen = true;
+        render({ preserveScroll:true });
+      }
+
+      function closeDatePicker() {
+        state.datePickerOpen = false;
+        render({ preserveScroll:true });
+      }
+
       function render(options = {}) {
         const preserveScroll = Boolean(options.preserveScroll);
         const scrollTop = preserveScroll ? window.scrollY : 0;
@@ -666,7 +881,7 @@
         const qualityCounts = number(quality.inconsistentes) + number(quality.suspeitos);
         const alerts = (data?.alerts || []).slice().sort((a, b) => number(a.prioridade) - number(b.prioridade) || number(b.impacto) - number(a.impacto)).slice(0, 7);
         const revenueByCampaign = new Map();
-        all.forEach(row => {
+        all.filter(row => !isResidual(row)).forEach(row => {
           const entry = revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 };
           entry.cap_rev += number(row.cap_rev);
           entry.broad_rev += number(row.broad_rev);
@@ -680,23 +895,20 @@
           state.rankingSort,
           { action:row => row.recomendacao || "acompanhar", trend:row => row.tendencia || "indefinida" }
         );
-        const range = days.length ? `${date(days[0].date)} → ${date(days.at(-1).date)}` : "Sem data disponível";
+        const range = state.start && state.end ? `${date(state.start)} → ${date(state.end)}` : "Sem período selecionado";
         const partialNotice = partial.length ? `<div class="notice"><b>⚠</b><span><b>Dados parciais:</b> ${partial.map(escape).join(", ")}. Decisões deste período merecem conferência adicional.</span></div>` : "";
         const qualityNotice = qualityCounts ? `<div class="notice notice-info"><b>i</b><span><b>Qualidade dos dados:</b> ${number(quality.inconsistentes)} inconsistência(s) e ${number(quality.suspeitos)} registro(s) suspeito(s) no período.</span></div>` : "";
         const insightNote = state.insightsUnavailable ? '<p class="insight-note">Os indicadores avançados estão temporariamente indisponíveis; os KPIs, o histórico e os cálculos do período continuam atualizados.</p>' : "";
 
         APP.innerHTML = `<header class="topbar">
           <div class="brand"><div class="mark">Df</div><div><p class="eyebrow">DIZZ 1 WAVE</p><h1>DASHFULL</h1><p class="subtitle">Performance diária, com decisões claras.</p></div></div>
-          <span class="public">Painel público</span>
-        </header>
-        <section class="filters" aria-label="Filtros de período">
-          <span class="filter-label">Período do painel</span>
-          <div class="ranges">${QUICK_RANGES.map(value => `<button type="button" data-range="${value}" class="${!state.start && state.range === value ? "active" : ""}">${value} dias</button>`).join("")}</div>
-          <div class="dates">
-            <label>De <input id="start" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${state.start}" /></label>
-            <label>Até <input id="end" type="date" min="${state.days[0].date}" max="${state.days.at(-1).date}" value="${state.end}" /></label>
+          <div class="date-control">
+            <button type="button" class="date-trigger" data-date-picker-trigger aria-haspopup="dialog" aria-expanded="${state.datePickerOpen}" aria-label="Alterar período do painel">
+              <span class="calendar-icon" aria-hidden="true"></span><span class="date-trigger-label">${compactPeriod(state.start, state.end)}</span>
+            </button>
+            ${datePickerMarkup()}
           </div>
-        </section>
+        </header>
         <div class="workspace">
           ${historyMarkup()}
           <div class="main">
@@ -748,25 +960,53 @@
       }
 
       function bind() {
-        document.querySelectorAll("[data-range]").forEach(button => button.addEventListener("click", () => {
-          state.range = Number(button.dataset.range);
-          state.start = "";
-          state.end = "";
+        document.querySelector("[data-date-picker-trigger]")?.addEventListener("click", () => {
+          if (state.datePickerOpen) closeDatePicker();
+          else openDatePicker();
+        });
+        document.querySelector("[data-close-date-picker]")?.addEventListener("click", closeDatePicker);
+        document.querySelector("[data-cancel-date-picker]")?.addEventListener("click", closeDatePicker);
+        document.querySelectorAll("[data-date-preset]").forEach(button => button.addEventListener("click", () => {
+          const preset = button.dataset.datePreset;
+          state.draftPreset = preset;
+          if (preset !== "custom") {
+            const period = periodForPreset(preset);
+            state.draftStart = period.start;
+            state.draftEnd = period.end;
+            state.calendarMonth = monthShift(period.end.slice(0,7), -1);
+          }
+          render({ preserveScroll:true });
+        }));
+        document.querySelectorAll("[data-calendar-shift]").forEach(button => button.addEventListener("click", () => {
+          state.calendarMonth = monthShift(state.calendarMonth, Number(button.dataset.calendarShift));
+          render({ preserveScroll:true });
+        }));
+        document.querySelectorAll("[data-calendar-day]").forEach(button => button.addEventListener("click", () => {
+          const picked = button.dataset.calendarDay;
+          if (state.draftPreset !== "custom" || !state.draftStart || state.draftEnd) {
+            state.draftStart = picked;
+            state.draftEnd = "";
+          } else if (picked < state.draftStart) {
+            state.draftEnd = state.draftStart;
+            state.draftStart = picked;
+          } else {
+            state.draftEnd = picked;
+          }
+          state.draftPreset = "custom";
+          render({ preserveScroll:true });
+        }));
+        document.querySelector("[data-apply-date-picker]")?.addEventListener("click", () => {
+          if (!state.draftStart || !state.draftEnd) return;
+          state.start = state.draftStart;
+          state.end = state.draftEnd;
+          state.preset = state.draftPreset;
+          state.datePickerOpen = false;
           syncHash();
           load({ preserveScroll:true });
-        }));
-
-        ["start", "end"].forEach(id => document.getElementById(id)?.addEventListener("change", event => {
-          state[id] = event.target.value;
-          if (state.start && state.end) {
-            if (state.start > state.end) [state.start, state.end] = [state.end, state.start];
-            syncHash();
-            load({ preserveScroll:true });
-          } else {
-            syncHash();
-            render({ preserveScroll:true });
-          }
-        }));
+        });
+        document.querySelector(".date-picker")?.addEventListener("keydown", event => {
+          if (event.key === "Escape") closeDatePicker();
+        });
 
         document.getElementById("search")?.addEventListener("input", event => {
           state.query = event.target.value;
@@ -1076,15 +1316,18 @@
       function dayModalMarkup(route) {
         const day = state.days.find(item => number(item.di) === number(route.di));
         const rawRows = route.contextRows.filter(row => number(row.di) === number(route.di));
+        const operationalRows = rawRows.filter(row => !isResidual(row));
+        const residualRows = rawRows.filter(isResidual);
         const metrics = totals(rawRows);
+        const operationalMetrics = totals(operationalRows);
         const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
-        const missingMetaSpend = rawRows.length > 0 && metrics.spend === 0 && metrics.gross > 0;
+        const missingMetaSpend = operationalRows.length > 0 && operationalMetrics.spend === 0 && operationalMetrics.gross > 0;
         const getters = { roi:row => row.calculatedRoi, d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(dayCampaignRows(route), route.sort, getters);
         return `<div class="modal-heading">
             <p class="eyebrow">CAMPANHAS DO DIA</p>
             <h2 class="detail-name" id="nav-modal-title">${date(day?.date)}</h2>
-            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha rodou" : "campanhas rodaram"} neste dia${route.search ? ` · filtro "${escape(route.search)}" ativo` : ""}. Clique em uma campanha para abrir o demonstrativo completo.</p>
+            <p class="detail-sub">${rows.length} ${rows.length === 1 ? "campanha registrada" : "campanhas registradas"} neste dia${route.search ? ` · filtro "${escape(route.search)}" ativo` : ""}. Clique em uma campanha para abrir o demonstrativo completo.</p>
           </div>
           <div class="detail-metrics" aria-label="Resumo financeiro de ${date(day?.date)}">
             <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
@@ -1096,7 +1339,8 @@
             <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${moneyPrecise(metrics.profit)}</strong></div>
             <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
           </div>
-          ${missingMetaSpend ? '<p class="coverage-warning"><strong>Atenção:</strong> nenhum gasto do Meta Ads está registrado para este dia. O símbolo ∞ indica receita com custo zerado na base; confirme o arquivo do Meta Ads antes de interpretar como retorno real.</p>' : ""}
+          ${missingMetaSpend ? '<p class="coverage-warning"><strong>Atenção:</strong> há receita de campanha ativa sem gasto do Meta Ads registrado neste dia. Confirme o arquivo do Meta Ads antes de interpretar o símbolo ∞ como retorno real.</p>' : ""}
+          ${residualRows.length ? `<p class="residual-note">${residualRows.length} ${residualRows.length === 1 ? "linha contém" : "linhas contêm"} apenas receita residual de sufixo sem campanha ativa.</p>` : ""}
           <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
           <div class="table-tools"><input data-day-search value="${escape(route.search || "")}" placeholder="Buscar campanha, nicho ou código (ex: MX)" aria-label="Buscar campanha no dia" /></div>
           <div class="scroller" data-route-scroller><table class="day-table"><thead><tr>
@@ -1116,7 +1360,7 @@
             ${sortableHead("Status", "status", route.sort)}
           </tr></thead><tbody>
             ${rows.length ? rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-day-campaign="${row.campaign_id}" aria-label="Abrir detalhes de ${escape(row.label)}">
-              <td class="campaign">${escape(row.label)}</td>
+              <td class="campaign">${campaignName(row)}</td>
               <td>${moneyPrecise(row.spend)}</td>
               <td>${moneyPrecise(row.cost)}</td>
               <td>${moneyPrecise(row.cap_rev)}</td>
@@ -1145,6 +1389,10 @@
         const selected = modalWindow(route.rows, route.scope, route.anchorDi);
         const campaign = campaignMeta(route.id, route.rows);
         const metrics = totals(selected.rows);
+        const residualDays = selected.rows.filter(isResidual);
+        const anchorResidual = route.anchorDi !== null && route.anchorDi !== undefined
+          ? route.rows.some(row => number(row.di) === number(route.anchorDi) && isResidual(row))
+          : selected.rows.length > 0 && residualDays.length === selected.rows.length;
         const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
         const latest = selected.rows.at(-1);
         const coverage = new Set(selected.rows.map(row => row.date)).size;
@@ -1152,7 +1400,7 @@
         const tableRows = sortRows(selected.rows.map(row => ({ ...row, calculatedRoi:roiForRow(row) })), route.sort, { roi:row => row.calculatedRoi });
         return `<div class="modal-heading">
             <p class="eyebrow">DEMONSTRATIVO DA CAMPANHA</p>
-            <h2 class="detail-name" id="nav-modal-title">${escape(campaign.label)}</h2>
+            <h2 class="detail-name" id="nav-modal-title">${escape(campaign.label)}${anchorResidual ? residualLabel : ""}</h2>
             <p class="detail-sub">${escape(campaign.suffix || campaign.niche || "Campanha de mensagens")}</p>
           </div>
           <div class="modal-scopes" aria-label="Período do demonstrativo">${scopeButtons}</div>
@@ -1160,6 +1408,7 @@
           <p class="modal-note">${selected.isComplete ? `${coverage} dias com dados no histórico` : `${coverage} de ${selected.expectedDays.length} dias com dados`}</p>
           ${route.loading ? '<p class="modal-note">O histórico completo está sendo carregado em segundo plano.</p>' : ""}
           ${route.error ? '<div class="modal-error">O período disponível foi mantido, mas o histórico completo não pôde ser atualizado.</div>' : ""}
+          ${residualDays.length ? `<p class="residual-note">${residualDays.length} ${residualDays.length === 1 ? "dia de receita residual está incluído" : "dias de receita residual estão incluídos"} neste demonstrativo.</p>` : ""}
           <div class="detail-metrics">
             <div class="detail-metric"><span>Gasto</span><strong>${money(metrics.spend)}</strong></div>
             <div class="detail-metric"><span>Custo</span><strong>${money(metrics.cost)}</strong></div>
@@ -1339,6 +1588,9 @@
       async function load(options = {}) {
         const active = selectedDays();
         if (!active.length) {
+          ++state.loadId;
+          state.insightsUnavailable = false;
+          state.data = deriveDashboard([]);
           render(options);
           return;
         }
@@ -1351,7 +1603,7 @@
         render(options);
 
         try {
-          const daily = await apiAll(`v_daily?typ=eq.msgs&di=gte.${first}&di=lte.${last}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`);
+          const daily = await apiAll(`v_daily?typ=eq.msgs&date=gte.${state.start}&date=lte.${state.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`);
           if (requestId !== state.loadId) return;
           state.data = deriveDashboard(daily);
           render({ preserveScroll:Boolean(options.preserveScroll) });
@@ -1367,6 +1619,7 @@
         closeNavigationModal({ restoreFocus:false });
         try {
           state.days = await api("days?select=di,date,label,badge&order=di.asc");
+          ensureInitialPeriod();
           syncHash();
           await load();
         } catch {
@@ -1381,6 +1634,8 @@
         state.range = next.range;
         state.start = next.start;
         state.end = next.end;
+        state.preset = next.preset;
+        ensureInitialPeriod();
         if (state.days.length) load({ preserveScroll:true });
       });
 
