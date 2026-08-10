@@ -19,8 +19,11 @@ Next ou Cloudflare Worker.
 - Ranking, fila de decisão e qualidade de dados são enriquecimentos progressivos
   dos RPCs `campaign_ranking`, `operational_alerts` e `data_quality_status`,
   cada um com timeout próprio.
-- Os atalhos do período são de 3, 7 e 30 dias; intervalos personalizados são
-  compartilháveis pela URL: `#p=7` ou `#ini=YYYY-MM-DD&fim=YYYY-MM-DD`.
+- O período é controlado por um único calendário no cabeçalho, com atalhos de
+  hoje, ontem, 7/30/90 dias, mês, trimestre, ano e intervalo personalizado.
+  A consulta só é atualizada ao clicar em **Aplicar**. URLs antigas com `#p=7`
+  continuam aceitas; o formato compartilhável atual é
+  `#ini=YYYY-MM-DD&fim=YYYY-MM-DD`.
 - A coluna histórica lista apenas os meses. Selecionar um mês abre o resumo
   financeiro de cada dia; selecionar o dia abre suas campanhas; selecionar uma
   campanha abre seu demonstrativo completo.
@@ -39,6 +42,13 @@ Next ou Cloudflare Worker.
 - Quando existe receita com custo zerado, o ROI é representado por `∞`. Se um
   dia inteiro tiver receita e nenhum gasto registrado, o painel também alerta
   que o arquivo do Meta Ads precisa ser conferido antes de interpretar o retorno.
+- Receita residual usa exclusivamente a flag `msgs_results.residual`. Ela
+  continua nos totais e no histórico, recebe uma legenda discreta sob o nome da
+  campanha e não entra no ranking nem nas recomendações operacionais.
+- Uma trava no Supabase bloqueia lançamentos financeiros atribuídos a campanha
+  inativa, receita residual enquanto existe campanha ativa, titular incorreto e
+  conflito simultâneo entre operações diferentes no mesmo sufixo. Variações da
+  mesma operação continuam resolvidas pelo titular mais antigo.
 
 Os dados brutos de campanhas não são modificados pelo frontend. As alterações
 analíticas de banco ficam registradas em `supabase/migrations/`.

@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const dashboardUrl = new URL("../docs/index.html", import.meta.url);
+const residualMigrationUrl = new URL("../supabase/migrations/20260810012536_use_explicit_residual_flag_in_dashboard.sql", import.meta.url);
+const guardMigrationUrl = new URL("../supabase/migrations/20260810013727_enforce_daily_attribution_guards.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
@@ -25,8 +27,8 @@ async function dashboardHelpers() {
     `${stoppedScript}
       return {
         state, calendarDays, comparisonCell, dayCampaignRows, isoShift, modalWindow,
-        monthBounds, monthCoverage, monthSummary, roiForDays, roiForRow, sortRows,
-        roiText, totalRoi, totals
+        monthBounds, monthCoverage, monthSummary, periodForPreset, roiForDays, roiForRow,
+        sortRows, roiText, totalRoi, totals, campaignName, deriveDashboard
       };`
   )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
@@ -59,7 +61,7 @@ test("initial and drill-down queries are paginated and the full history is lazy"
   assert.match(source, /const PAGE_SIZE = 500/);
   assert.match(source, /const apiAll = async path/);
   assert.match(source, /limit=\$\{PAGE_SIZE\}&offset=\$\{offset\}/);
-  assert.match(source, /const daily = await apiAll\(`v_daily\?typ=eq\.msgs&di=gte\./);
+  assert.match(source, /const daily = await apiAll\(`v_daily\?typ=eq\.msgs&date=gte\.\$\{state\.start\}&date=lte\.\$\{state\.end\}/);
   assert.match(source, /async function loadMonthData/);
   assert.match(source, /async function loadCampaignData/);
   assert.match(source, /monthCache: new Map\(\)/);
@@ -67,12 +69,29 @@ test("initial and drill-down queries are paginated and the full history is lazy"
   assert.doesNotMatch(source, /loadHistory|historyLoaded|state\.history/);
 });
 
-test("quick panel filters retain only 3, 7 and 30 days", async () => {
+test("the unified date picker replaces the old filter row and only applies on confirmation", async () => {
   const source = await dashboardSource();
   assert.match(source, /const RANGE_VALUES = new Set\(\[3,7,30\]\)/);
-  assert.match(source, /const QUICK_RANGES = \[3,7,30\]/);
-  assert.doesNotMatch(source, /\[3,5,7,14,30\]/);
-  assert.match(source, /range:RANGE_VALUES\.has\(range\) \? range : 7/);
+  for (const preset of ["Hoje", "Ontem", "Últimos 7 dias", "Últimos 30 dias", "Últimos 90 dias", "Este mês", "Mês passado", "Este trimestre", "Este ano", "Personalizado"]) {
+    assert.match(source, new RegExp(`label:\"${preset}\"`));
+  }
+  assert.match(source, /data-date-picker-trigger/);
+  assert.match(source, /data-apply-date-picker/);
+  assert.match(source, /state\.datePickerOpen = false;[\s\S]*?syncHash\(\);[\s\S]*?load\(\{ preserveScroll:true \}\)/);
+  assert.doesNotMatch(source, /class="filters"|Painel público|data-range=/);
+  assert.match(source, /value > today/);
+});
+
+test("date presets use real calendar windows", async () => {
+  const { periodForPreset } = await dashboardHelpers();
+  assert.deepEqual(periodForPreset("today", "2026-08-09"), { start:"2026-08-09", end:"2026-08-09" });
+  assert.deepEqual(periodForPreset("yesterday", "2026-08-09"), { start:"2026-08-08", end:"2026-08-08" });
+  assert.deepEqual(periodForPreset("last7", "2026-08-09"), { start:"2026-08-03", end:"2026-08-09" });
+  assert.deepEqual(periodForPreset("last30", "2026-08-09"), { start:"2026-07-11", end:"2026-08-09" });
+  assert.deepEqual(periodForPreset("thisMonth", "2026-08-09"), { start:"2026-08-01", end:"2026-08-09" });
+  assert.deepEqual(periodForPreset("lastMonth", "2026-08-09"), { start:"2026-07-01", end:"2026-07-31" });
+  assert.deepEqual(periodForPreset("thisQuarter", "2026-08-09"), { start:"2026-07-01", end:"2026-08-09" });
+  assert.deepEqual(periodForPreset("thisYear", "2026-08-09"), { start:"2026-01-01", end:"2026-08-09" });
 });
 
 test("months open the unified modal directly instead of expanding the sidebar", async () => {
@@ -215,8 +234,37 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
   assert.match(dayMarkup, /sortableHead\("Últ\. 7"/);
   assert.match(dayMarkup, /sortableHead\("Últ\. 14"/);
   assert.match(dayMarkup, /sortableHead\("Status"/);
-  assert.match(dayMarkup, /nenhum gasto do Meta Ads está registrado para este dia/);
-  assert.match(dayMarkup, /confirme o arquivo do Meta Ads antes de interpretar como retorno real/);
+  assert.match(dayMarkup, /receita de campanha ativa sem gasto do Meta Ads registrado neste dia/);
+  assert.match(dayMarkup, /Confirme o arquivo do Meta Ads antes de interpretar o símbolo ∞ como retorno real/);
+});
+
+test("residual revenue uses the explicit database flag and stays out of operational recommendations", async () => {
+  const source = await dashboardSource();
+  const { campaignName, deriveDashboard } = await dashboardHelpers();
+  assert.match(source, /DAILY_FIELDS = ".*residual"/);
+  assert.match(source, /const operationalDaily = daily\.filter\(row => !isResidual\(row\)\)/);
+  assert.match(source, /all\.filter\(row => !isResidual\(row\)\)/);
+  assert.match(campaignName({ label:"Campanha antiga", residual:true }), /receita residual/);
+  assert.doesNotMatch(campaignName({ label:"Campanha ativa", residual:false }), /receita residual/);
+
+  const data = deriveDashboard([
+    { di:1, campaign_id:1, label:"Ativa", residual:false, spend:100, cost:113, rev:200, rev_adj:180, profit:67, cap_rev:120, broad_rev:80 },
+    { di:2, campaign_id:2, label:"Antiga", residual:true, spend:0, cost:0, rev:50, rev_adj:45, profit:45, cap_rev:50, broad_rev:0 }
+  ]);
+  assert.deepEqual(data.ranking.map(row => row.label), ["Ativa"]);
+  assert.equal(data.summary.portfolio.rev_adj, 225, "portfolio totals must retain residual revenue");
+});
+
+test("database migrations preserve residual totals and block unsafe suffix attribution", async () => {
+  const residualSql = await readFile(residualMigrationUrl, "utf8");
+  const guardSql = await readFile(guardMigrationUrl, "utf8");
+  assert.match(residualSql, /with \(security_invoker = true\)/);
+  assert.match(residualSql, /when m\.residual then 'residual'/);
+  assert.match(residualSql, /and not residual/);
+  assert.match(guardSql, /create trigger msgs_results_attribution_guard/);
+  assert.match(guardSql, /active_groups > 1/);
+  assert.match(guardSql, /expected_owner <> new\.carro_n/);
+  assert.match(guardSql, /new\.residual/);
 });
 
 test("day popup exposes a persistent search field, an active-filter subtitle and an empty state", async () => {
