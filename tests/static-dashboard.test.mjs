@@ -208,7 +208,8 @@ test("campaign periods use calendar windows and preserve missing-day coverage", 
   assert.deepEqual(selectedDay.rows.map(row => row.di), [12]);
   assert.deepEqual(complete.rows.map(row => row.di), [10, 12, 13]);
   assert.equal(roiForDays(lastSeven.rows, lastSeven.expectedDays).coverage, 3);
-  assert.equal(roiForRow({ cost:0, profit:20 }), null);
+  assert.equal(roiForRow({ cost:0, profit:20, rev_adj:20 }), null);
+  assert.equal(roiForRow({ cost:0, profit:0, rev_adj:0 }), undefined);
 });
 
 test("daily popup has summary cards, drill-down rows and the complete financial table", async () => {
@@ -341,6 +342,7 @@ test("zero cost with revenue is represented by a minimal accessible infinity sym
   assert.match(roiText(null), />∞<\/span>/);
   assert.match(roiText(null), /aria-label="Infinito: receita com custo zerado"/);
   assert.match(comparisonCell(null), />∞<\/span>/);
+  assert.equal(roiText(undefined), "—");
   assert.equal(comparisonCell(undefined), "—");
   assert.doesNotMatch(source, /Sem custo/);
 });

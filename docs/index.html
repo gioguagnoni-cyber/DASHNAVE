@@ -575,13 +575,13 @@
         const cost = number(row.cost);
         return cost ? number(row.profit) / cost * 100 : 0;
       };
-      const roiForRow = row => number(row.cost) ? dailyRoi(row) : null;
+      const roiForRow = row => number(row.cost) ? dailyRoi(row) : number(row.rev_adj) > 0 ? null : undefined;
       const infinityRoi = '<span class="infinite-roi" title="Receita com custo zerado" aria-label="Infinito: receita com custo zerado">∞</span>';
-      const roiText = value => value === null || value === undefined ? infinityRoi : pct(value);
+      const roiText = value => value === null ? infinityRoi : value === undefined ? "—" : pct(value);
       const totalRoi = rows => {
-        if (!rows.length) return null;
+        if (!rows.length) return undefined;
         const all = totals(rows);
-        return all.cost ? all.profit / all.cost * 100 : null;
+        return all.cost ? all.profit / all.cost * 100 : all.revenue > 0 ? null : undefined;
       };
       const compareValues = (first, second, direction) => {
         const aMissing = first === null || first === undefined || Number.isNaN(first);
@@ -919,7 +919,7 @@
               <article class="metric"><div class="metric-label">Gasto total</div><div class="metric-value">${money(metrics.spend)}</div><div class="metric-foot">${count} campanhas com resultado</div></article>
               <article class="metric"><div class="metric-label">Receita líquida</div><div class="metric-value positive">${money(metrics.revenue)}</div><div class="metric-foot">Após os ajustes de receita aplicados</div></article>
               <article class="metric"><div class="metric-label">Lucro</div><div class="metric-value ${tone(metrics.profit)}">${money(metrics.profit)}</div><div class="metric-foot">Custo total: ${money(metrics.cost)}</div></article>
-              <article class="metric"><div class="metric-label">ROI</div><div class="metric-value ${tone(metrics.roi)}">${roiText(metrics.cost ? metrics.roi : null)}</div><div class="metric-foot">Retorno sobre o custo total</div></article>
+              <article class="metric"><div class="metric-label">ROI</div><div class="metric-value ${tone(metrics.roi)}">${roiText(metrics.cost ? metrics.roi : metrics.revenue > 0 ? null : undefined)}</div><div class="metric-foot">Retorno sobre o custo total</div></article>
             </section>
             <section class="content">
               <article class="panel">
@@ -948,7 +948,7 @@
                 ${ranking.length ? ranking.map(row => {
                   const recommendation = String(row.recomendacao || "acompanhar");
                   const trend = String(row.tendencia || "indefinida");
-                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cap_rev)}</td><td>${moneyPrecise(row.broad_rev)}</td><td>${moneyPrecise(row.rev)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : null)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
+                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cap_rev)}</td><td>${moneyPrecise(row.broad_rev)}</td><td>${moneyPrecise(row.rev)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : number(row.rev_adj) > 0 ? null : undefined)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
                 }).join("") : '<tr><td colspan="10"><div class="empty">Nenhuma campanha encontrada neste período.</div></td></tr>'}
               </tbody></table></div>
             </section>
@@ -1126,7 +1126,7 @@
             rev:metrics.gross,
             rev_adj:metrics.revenue,
             profit:metrics.profit,
-            roi:metrics.cost ? metrics.profit / metrics.cost * 100 : null,
+            roi:metrics.cost ? metrics.profit / metrics.cost * 100 : metrics.revenue > 0 ? null : undefined,
             d1:roiForDate(data.contextRows, isoShift(group.date, -1)),
             d2:roiForDate(data.contextRows, isoShift(group.date, -2)),
             last7:roiForRange(data.contextRows, isoShift(group.date, -6), group.date),
@@ -1197,7 +1197,7 @@
         const picked = rows.filter(row => expectedDates.has(row.date));
         const all = totals(picked);
         const coverage = new Set(picked.map(row => row.date)).size;
-        return picked.length ? { roi:all.cost ? all.profit / all.cost * 100 : null, coverage, requested:days.length } : null;
+        return picked.length ? { roi:all.cost ? all.profit / all.cost * 100 : all.revenue > 0 ? null : undefined, coverage, requested:days.length } : null;
       }
 
       function compare(label, value) {
@@ -1362,7 +1362,7 @@
         const residualRows = rawRows.filter(isResidual);
         const metrics = totals(rawRows);
         const operationalMetrics = totals(operationalRows);
-        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
+        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : metrics.revenue > 0 ? null : undefined;
         const missingMetaSpend = operationalRows.length > 0 && operationalMetrics.spend === 0 && operationalMetrics.gross > 0;
         const getters = { roi:row => row.calculatedRoi, d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(dayCampaignRows(route), route.sort, getters);
@@ -1435,7 +1435,7 @@
         const anchorResidual = route.anchorDi !== null && route.anchorDi !== undefined
           ? route.rows.some(row => number(row.di) === number(route.anchorDi) && isResidual(row))
           : selected.rows.length > 0 && residualDays.length === selected.rows.length;
-        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : null;
+        const roi = metrics.cost ? metrics.profit / metrics.cost * 100 : metrics.revenue > 0 ? null : undefined;
         const latest = selected.rows.at(-1);
         const coverage = new Set(selected.rows.map(row => row.date)).size;
         const scopeButtons = MODAL_SCOPES.map(item => `<button type="button" data-modal-scope="${item.id}" class="${route.scope === item.id ? "active" : ""}" ${route.loading && item.id !== "panel" ? "disabled" : ""}>${item.label}</button>`).join("");
