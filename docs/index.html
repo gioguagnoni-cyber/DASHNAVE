@@ -483,6 +483,7 @@
         end.setUTCMonth(end.getUTCMonth() + 1);
         return { start, end:end.toISOString().slice(0,10), contextStart:isoShift(start, -13) };
       };
+      const monthDaysForKey = key => state.days.filter(day => day.date.startsWith(`${key}-`));
       const monthCoverage = days => {
         const dates = [...new Set(days.map(day => day.date).filter(Boolean))].sort();
         if (!dates.length) return { first:null, last:null, periodDays:0, daysWithData:0, missing:[] };
@@ -1051,11 +1052,13 @@
         const cached = state.monthCache.get(key);
         if (cached) return await cached;
         const bounds = monthBounds(key);
+        const monthDays = monthDaysForKey(key);
         const request = apiAll(`v_daily?typ=eq.msgs&date=gte.${bounds.contextStart}&date=lt.${bounds.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`)
           .then(contextRows => ({
             contextRows,
             monthRows:contextRows.filter(row => row.date >= bounds.start && row.date < bounds.end),
-            bounds
+            bounds,
+            monthDays
           }))
           .catch(error => {
             state.monthCache.delete(key);
@@ -1089,7 +1092,28 @@
           group.rows.push(row);
           grouped.set(row.date, group);
         });
-        return [...grouped.values()].map(group => {
+        return (data.monthDays?.length ? data.monthDays : [...grouped.values()]).map(day => {
+          const group = grouped.get(day.date);
+          if (!group) {
+            return {
+              date:day.date,
+              di:day.di,
+              campaigns:0,
+              spend:0,
+              cost:0,
+              cap_rev:0,
+              broad_rev:0,
+              rev:0,
+              rev_adj:0,
+              profit:0,
+              roi:null,
+              d1:roiForDate(data.contextRows, isoShift(day.date, -1)),
+              d2:roiForDate(data.contextRows, isoShift(day.date, -2)),
+              last7:roiForRange(data.contextRows, isoShift(day.date, -6), day.date),
+              last14:roiForRange(data.contextRows, isoShift(day.date, -13), day.date),
+              hasData:false
+            };
+          }
           const metrics = totals(group.rows);
           return {
             date:group.date,
@@ -1106,7 +1130,8 @@
             d1:roiForDate(data.contextRows, isoShift(group.date, -1)),
             d2:roiForDate(data.contextRows, isoShift(group.date, -2)),
             last7:roiForRange(data.contextRows, isoShift(group.date, -6), group.date),
-            last14:roiForRange(data.contextRows, isoShift(group.date, -13), group.date)
+            last14:roiForRange(data.contextRows, isoShift(group.date, -13), group.date),
+            hasData:true
           };
         });
       }
@@ -1266,7 +1291,7 @@
 
         const getters = { d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(monthSummary(route.data), route.sort, getters);
-        const coverage = monthCoverage(rows);
+        const coverage = monthCoverage(route.data.monthDays || rows);
         const coverageLabel = coverage.missing.length
           ? `${coverage.periodDays} dias no período · ${coverage.daysWithData} com dados`
           : `${coverage.periodDays} ${coverage.periodDays === 1 ? "dia" : "dias"} no período`;
@@ -1294,22 +1319,39 @@
             ${sortableHead("Últ. 7", "last7", route.sort)}
             ${sortableHead("Últ. 14", "last14", route.sort)}
           </tr></thead><tbody>
-            ${rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-month-day="${row.di}" aria-label="Abrir ${row.campaigns} campanhas de ${date(row.date)}">
-              <td><span class="drill-link">${date(row.date)}</span></td>
-              <td>${row.campaigns} campanhas</td>
-              <td>${moneyPrecise(row.spend)}</td>
-              <td>${moneyPrecise(row.cost)}</td>
-              <td>${moneyPrecise(row.cap_rev)}</td>
-              <td>${moneyPrecise(row.broad_rev)}</td>
-              <td>${moneyPrecise(row.rev)}</td>
-              <td>${moneyPrecise(row.rev_adj)}</td>
-              <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
-              <td class="${tone(row.roi)}">${roiText(row.roi)}</td>
-              <td class="${tone(row.d1)}">${comparisonCell(row.d1)}</td>
-              <td class="${tone(row.d2)}">${comparisonCell(row.d2)}</td>
-              <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
-              <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
-            </tr>`).join("")}
+            ${rows.map(row => row.hasData
+              ? `<tr class="drill-row" tabindex="0" role="button" data-month-day="${row.di}" aria-label="Abrir ${row.campaigns} campanhas de ${date(row.date)}">
+                  <td><span class="drill-link">${date(row.date)}</span></td>
+                  <td>${row.campaigns} campanhas</td>
+                  <td>${moneyPrecise(row.spend)}</td>
+                  <td>${moneyPrecise(row.cost)}</td>
+                  <td>${moneyPrecise(row.cap_rev)}</td>
+                  <td>${moneyPrecise(row.broad_rev)}</td>
+                  <td>${moneyPrecise(row.rev)}</td>
+                  <td>${moneyPrecise(row.rev_adj)}</td>
+                  <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
+                  <td class="${tone(row.roi)}">${roiText(row.roi)}</td>
+                  <td class="${tone(row.d1)}">${comparisonCell(row.d1)}</td>
+                  <td class="${tone(row.d2)}">${comparisonCell(row.d2)}</td>
+                  <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
+                  <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
+                </tr>`
+              : `<tr class="missing-day-row" aria-label="${date(row.date)} ainda sem dados importados">
+                  <td>${date(row.date)}</td>
+                  <td>Sem dados</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td class="${tone(row.d1)}">${comparisonCell(row.d1)}</td>
+                  <td class="${tone(row.d2)}">${comparisonCell(row.d2)}</td>
+                  <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
+                  <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
+                </tr>`).join("")}
           </tbody></table></div>`;
       }
 
