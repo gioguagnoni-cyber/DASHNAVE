@@ -8,6 +8,7 @@ const guardMigrationUrl = new URL("../supabase/migrations/20260810013727_enforce
 const multiAccountMigrationUrl = new URL("../supabase/migrations/20260820101159_add_multi_account_currency_isolation.sql", import.meta.url);
 const legacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101201_disable_public_unscoped_dashboard_rpcs.sql", import.meta.url);
 const publicLegacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101202_revoke_public_legacy_dashboard_rpcs.sql", import.meta.url);
+const usdTaxMigrationUrl = new URL("../supabase/migrations/20260820180000_remove_usd_meta_tax.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
@@ -32,7 +33,7 @@ async function dashboardHelpers() {
         state, calendarDays, comparisonCell, dayCampaignRows, isoShift, modalWindow,
         monthBounds, monthCoverage, monthSummary, periodForPreset, roiForDays, roiForRow,
         sortRows, roiText, totalRoi, totals, campaignName, deriveDashboard,
-        activeCurrency, financialRule, moneyPrecise, todayIso
+        activeCurrency, financialRule, hasAdditionalTax, moneyPrecise, todayIso
       };`
   )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
@@ -140,6 +141,20 @@ test("the month table contains every requested sortable column and no status", a
   }
   assert.doesNotMatch(monthMarkup, /sortableHead\("Status"/);
   assert.match(monthMarkup, /data-month-day="\$\{row\.di\}"/);
+});
+
+test("USD hides the duplicate cost presentation while BRL keeps it", async () => {
+  const source = await dashboardSource();
+  const monthMarkup = source.slice(source.indexOf("function monthModalMarkup"), source.indexOf("function dayModalMarkup"));
+  const dayMarkup = source.slice(source.indexOf("function dayModalMarkup"), source.indexOf("function campaignMeta"));
+  const campaignMarkup = source.slice(source.indexOf("function campaignModalMarkup"), source.indexOf("function renderNavigationModal"));
+
+  assert.match(source, /const hasAdditionalTax = \(\) => number\(activeAccount\(\)\?\.tax_rate\) > 0/);
+  assert.match(monthMarkup, /showCost \? sortableHead\("Custo", "cost", route\.sort\) : ""/);
+  assert.match(dayMarkup, /showCost \? `<div class="detail-metric"><span>Custo total<\/span>/);
+  assert.match(dayMarkup, /showCost \? sortableHead\("Custo", "cost", route\.sort\) : ""/);
+  assert.match(campaignMarkup, /showCost \? `<div class="detail-metric"><span>Custo<\/span>/);
+  assert.match(campaignMarkup, /showCost \? sortableHead\("Custo", "cost", route\.sort\) : ""/);
 });
 
 test("month totals and ROI comparisons use exact calendar dates", async () => {
@@ -282,7 +297,7 @@ test("day popup exposes a persistent search field, an active-filter subtitle and
   assert.match(dayMarkup, /aria-label="Buscar campanha no dia"/);
   assert.match(dayMarkup, /filtro "\$\{escape\(route\.search\)\}" ativo/);
   assert.match(dayMarkup, /Nenhuma campanha corresponde a "\$\{escape\(route\.search \|\| ""\)\}" neste dia/);
-  assert.match(dayMarkup, /colspan="14"/);
+  assert.match(dayMarkup, /colspan="\$\{showCost \? 14 : 13\}"/);
 
   const openDaySource = source.slice(
     source.indexOf("function openDayFromMonth"),
@@ -335,7 +350,7 @@ test("campaign history table breaks revenue into cap/broad/gross/net columns", a
   assert.match(campaignMarkup, /sortableHead\("Rec\. Líq\.", "rev_adj"/);
   assert.match(campaignMarkup, /<td>\$\{moneyPrecise\(row\.cap_rev\)\}<\/td>/);
   assert.match(campaignMarkup, /<td>\$\{moneyPrecise\(row\.broad_rev\)\}<\/td>/);
-  assert.match(campaignMarkup, /colspan="10"/);
+  assert.match(campaignMarkup, /showCost \? 10 : 9/);
 });
 
 test("zero cost with revenue is represented by a minimal accessible infinity symbol", async () => {
@@ -393,7 +408,8 @@ test("campaign details keep their own filters, chart and exact comparisons", asy
 
 test("cost, revenue and concise negative-streak rules remain explicit", async () => {
   const source = await dashboardSource();
-  assert.match(source, /Custo = gasto do Meta Ads \+ \$\{ratePct\(account\?\.tax_rate \?\? \.13\)\} de imposto/);
+  assert.match(source, /Custo = gasto do Meta Ads \+ \$\{ratePct\(account\?\.tax_rate\)\} de imposto/);
+  assert.match(source, /Custo considerado = gasto original do Meta Ads, sem imposto adicional/);
   assert.match(source, /Receita líquida = GAM − \$\{ratePct\(account\?\.rev_share_rate \?\? \.10\)\} de Rev Share/);
   assert.match(source, /detalhe:"ROI negativo, três dias consecutivos\."/);
   assert.doesNotMatch(source, /últimos 3:/);
@@ -401,7 +417,7 @@ test("cost, revenue and concise negative-streak rules remain explicit", async ()
 
 test("accounts isolate currency, dates, queries, caches and advanced RPCs", async () => {
   const source = await dashboardSource();
-  const { state, activeCurrency, financialRule, moneyPrecise } = await dashboardHelpers();
+  const { state, activeCurrency, financialRule, hasAdditionalTax, moneyPrecise } = await dashboardHelpers();
 
   assert.match(source, /dashboard_accounts\?select=meta_account_id,slug,source_name,display_name,currency,timezone,tax_rate,rev_share_rate,alert_min_spend/);
   assert.match(source, /<select id="account-selector"/);
@@ -419,12 +435,24 @@ test("accounts isolate currency, dates, queries, caches and advanced RPCs", asyn
     meta_account_id:"usd-account",
     currency:"USD",
     timezone:"America/Los_Angeles",
-    tax_rate:.13,
+    tax_rate:0,
     rev_share_rate:.10
   }];
   state.accountId = "usd-account";
   assert.equal(activeCurrency(), "USD");
+  assert.equal(hasAdditionalTax(), false);
   assert.match(moneyPrecise(12.5), /US\$|USD/);
+  assert.equal(financialRule(), "Custo considerado = gasto original do Meta Ads, sem imposto adicional. Receita líquida = GAM − 10% de Rev Share.");
+
+  state.accounts.push({
+    meta_account_id:"brl-account",
+    currency:"BRL",
+    timezone:"America/Sao_Paulo",
+    tax_rate:.13,
+    rev_share_rate:.10
+  });
+  state.accountId = "brl-account";
+  assert.equal(hasAdditionalTax(), true);
   assert.equal(financialRule(), "Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.");
 });
 
@@ -442,6 +470,15 @@ test("database constraints and public RPCs enforce account isolation", async () 
   assert.match(legacy, /revoke execute on function public\.dashboard_summary\(integer, integer\)[\s\S]*?from anon, authenticated/);
   assert.match(legacy, /call campaign_ranking_account instead/);
   assert.match(inheritedLegacy, /campaign_ranking\(integer, integer, numeric, numeric, text\)[\s\S]*?from public, anon, authenticated/);
+});
+
+test("USD tax migration is account-scoped and protects BRL totals", async () => {
+  const migration = await readFile(usdTaxMigrationUrl, "utf8");
+  assert.match(migration, /where meta_account_id = '2948780535467215'[\s\S]*?and currency = 'USD'/);
+  assert.match(migration, /where d\.account_id = '2948780535467215'/);
+  assert.match(migration, /set tax = 0,[\s\S]*?cost = corrected\.cost/);
+  assert.match(migration, /where d\.account_id = '1417197509632503'/);
+  assert.match(migration, /if baseline is distinct from current_brl then/);
 });
 
 test("the action panel reserves space for impact without overlapping campaign names", async () => {

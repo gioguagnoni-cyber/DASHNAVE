@@ -460,9 +460,13 @@
       const money = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:activeCurrency(), maximumFractionDigits:0 }).format(number(value));
       const moneyPrecise = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:activeCurrency(), minimumFractionDigits:2, maximumFractionDigits:2 }).format(number(value));
       const ratePct = value => `${number(value) * 100}%`;
+      const hasAdditionalTax = () => number(activeAccount()?.tax_rate) > 0;
       const financialRule = () => {
         const account = activeAccount();
-        return `Custo = gasto do Meta Ads + ${ratePct(account?.tax_rate ?? .13)} de imposto. Receita líquida = GAM − ${ratePct(account?.rev_share_rate ?? .10)} de Rev Share.`;
+        const costRule = hasAdditionalTax()
+          ? `Custo = gasto do Meta Ads + ${ratePct(account?.tax_rate)} de imposto.`
+          : "Custo considerado = gasto original do Meta Ads, sem imposto adicional.";
+        return `${costRule} Receita líquida = GAM − ${ratePct(account?.rev_share_rate ?? .10)} de Rev Share.`;
       };
       const pct = value => `${number(value) > 0 ? "+" : ""}${number(value).toFixed(1)}%`;
       const date = value => value ? `${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(2,4)}` : "—";
@@ -970,7 +974,7 @@
             <section class="metrics">
               <article class="metric"><div class="metric-label">Gasto total</div><div class="metric-value">${money(metrics.spend)}</div><div class="metric-foot">${count} campanhas com resultado</div></article>
               <article class="metric"><div class="metric-label">Receita líquida</div><div class="metric-value positive">${money(metrics.revenue)}</div><div class="metric-foot">Após os ajustes de receita aplicados</div></article>
-              <article class="metric"><div class="metric-label">Lucro</div><div class="metric-value ${tone(metrics.profit)}">${money(metrics.profit)}</div><div class="metric-foot">Custo total: ${money(metrics.cost)}</div></article>
+              <article class="metric"><div class="metric-label">Lucro</div><div class="metric-value ${tone(metrics.profit)}">${money(metrics.profit)}</div><div class="metric-foot">${hasAdditionalTax() ? "Custo total" : "Gasto considerado"}: ${money(metrics.cost)}</div></article>
               <article class="metric"><div class="metric-label">ROI</div><div class="metric-value ${tone(metrics.roi)}">${roiText(metrics.cost ? metrics.roi : metrics.revenue > 0 ? null : undefined)}</div><div class="metric-foot">Retorno sobre o custo total</div></article>
             </section>
             <section class="content">
@@ -1352,6 +1356,7 @@
           ? `${coverage.periodDays} dias no período · ${coverage.daysWithData} com dados`
           : `${coverage.periodDays} ${coverage.periodDays === 1 ? "dia" : "dias"} no período`;
         const missingLabel = coverage.missing.map(date).join(", ");
+        const showCost = hasAdditionalTax();
         return `<div class="modal-heading">
             <p class="eyebrow">RESUMO MENSAL</p>
             <h2 class="detail-name" id="nav-modal-title">${escape(route.label)}</h2>
@@ -1363,7 +1368,7 @@
             ${sortableHead("Data", "date", route.sort)}
             ${sortableHead("Campanhas", "campaigns", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
-            ${sortableHead("Custo", "cost", route.sort)}
+            ${showCost ? sortableHead("Custo", "cost", route.sort) : ""}
             ${sortableHead("Rec. Cap", "cap_rev", route.sort)}
             ${sortableHead("Rec. Broad", "broad_rev", route.sort)}
             ${sortableHead("Rec. Bruta", "rev", route.sort)}
@@ -1380,7 +1385,7 @@
                   <td><span class="drill-link">${date(row.date)}</span></td>
                   <td>${row.campaigns} campanhas</td>
                   <td>${moneyPrecise(row.spend)}</td>
-                  <td>${moneyPrecise(row.cost)}</td>
+                  ${showCost ? `<td>${moneyPrecise(row.cost)}</td>` : ""}
                   <td>${moneyPrecise(row.cap_rev)}</td>
                   <td>${moneyPrecise(row.broad_rev)}</td>
                   <td>${moneyPrecise(row.rev)}</td>
@@ -1396,7 +1401,7 @@
                   <td>${date(row.date)}</td>
                   <td>Sem dados</td>
                   <td>—</td>
-                  <td>—</td>
+                  ${showCost ? "<td>—</td>" : ""}
                   <td>—</td>
                   <td>—</td>
                   <td>—</td>
@@ -1422,6 +1427,7 @@
         const missingMetaSpend = operationalRows.length > 0 && operationalMetrics.spend === 0 && operationalMetrics.gross > 0;
         const getters = { roi:row => row.calculatedRoi, d1:row => row.d1, d2:row => row.d2, last7:row => row.last7, last14:row => row.last14 };
         const rows = sortRows(dayCampaignRows(route), route.sort, getters);
+        const showCost = hasAdditionalTax();
         return `<div class="modal-heading">
             <p class="eyebrow">CAMPANHAS DO DIA</p>
             <h2 class="detail-name" id="nav-modal-title">${date(day?.date)}</h2>
@@ -1429,7 +1435,7 @@
           </div>
           <div class="detail-metrics" aria-label="Resumo financeiro de ${date(day?.date)}">
             <div class="detail-metric"><span>Gasto total</span><strong>${moneyPrecise(metrics.spend)}</strong></div>
-            <div class="detail-metric"><span>Custo total</span><strong>${moneyPrecise(metrics.cost)}</strong></div>
+            ${showCost ? `<div class="detail-metric"><span>Custo total</span><strong>${moneyPrecise(metrics.cost)}</strong></div>` : ""}
             <div class="detail-metric"><span>Rec. Cap</span><strong>${moneyPrecise(metrics.capRev)}</strong></div>
             <div class="detail-metric"><span>Rec. Broad</span><strong>${moneyPrecise(metrics.broadRev)}</strong></div>
             <div class="detail-metric"><span>Rec. Bruta</span><strong>${moneyPrecise(metrics.gross)}</strong></div>
@@ -1444,7 +1450,7 @@
           <div class="scroller" data-route-scroller><table class="day-table"><thead><tr>
             ${sortableHead("Campanha", "label", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
-            ${sortableHead("Custo", "cost", route.sort)}
+            ${showCost ? sortableHead("Custo", "cost", route.sort) : ""}
             ${sortableHead("Rec. Cap", "cap_rev", route.sort)}
             ${sortableHead("Rec. Broad", "broad_rev", route.sort)}
             ${sortableHead("Rec. Bruta", "rev", route.sort)}
@@ -1460,7 +1466,7 @@
             ${rows.length ? rows.map(row => `<tr class="drill-row" tabindex="0" role="button" data-day-campaign="${row.campaign_id}" aria-label="Abrir detalhes de ${escape(row.label)}">
               <td class="campaign">${campaignName(row)}</td>
               <td>${moneyPrecise(row.spend)}</td>
-              <td>${moneyPrecise(row.cost)}</td>
+              ${showCost ? `<td>${moneyPrecise(row.cost)}</td>` : ""}
               <td>${moneyPrecise(row.cap_rev)}</td>
               <td>${moneyPrecise(row.broad_rev)}</td>
               <td>${moneyPrecise(row.rev)}</td>
@@ -1472,7 +1478,7 @@
               <td class="${tone(row.last7)}">${comparisonCell(row.last7)}</td>
               <td class="${tone(row.last14)}">${comparisonCell(row.last14)}</td>
               <td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td>
-            </tr>`).join("") : `<tr><td colspan="14"><div class="empty">Nenhuma campanha corresponde a "${escape(route.search || "")}" neste dia.</div></td></tr>`}
+            </tr>`).join("") : `<tr><td colspan="${showCost ? 14 : 13}"><div class="empty">Nenhuma campanha corresponde a "${escape(route.search || "")}" neste dia.</div></td></tr>`}
           </tbody></table></div>`;
       }
 
@@ -1496,6 +1502,7 @@
         const coverage = new Set(selected.rows.map(row => row.date)).size;
         const scopeButtons = MODAL_SCOPES.map(item => `<button type="button" data-modal-scope="${item.id}" class="${route.scope === item.id ? "active" : ""}" ${route.loading && item.id !== "panel" ? "disabled" : ""}>${item.label}</button>`).join("");
         const tableRows = sortRows(selected.rows.map(row => ({ ...row, calculatedRoi:roiForRow(row) })), route.sort, { roi:row => row.calculatedRoi });
+        const showCost = hasAdditionalTax();
         return `<div class="modal-heading">
             <p class="eyebrow">DEMONSTRATIVO DA CAMPANHA</p>
             <h2 class="detail-name" id="nav-modal-title">${escape(campaign.label)}${anchorResidual ? residualLabel : ""}</h2>
@@ -1509,7 +1516,7 @@
           ${residualDays.length ? `<p class="residual-note">${residualDays.length} ${residualDays.length === 1 ? "dia de receita residual está incluído" : "dias de receita residual estão incluídos"} neste demonstrativo.</p>` : ""}
           <div class="detail-metrics">
             <div class="detail-metric"><span>Gasto</span><strong>${money(metrics.spend)}</strong></div>
-            <div class="detail-metric"><span>Custo</span><strong>${money(metrics.cost)}</strong></div>
+            ${showCost ? `<div class="detail-metric"><span>Custo</span><strong>${money(metrics.cost)}</strong></div>` : ""}
             <div class="detail-metric"><span>Rec. Cap</span><strong>${money(metrics.capRev)} <small>(${metrics.gross ? Math.round(metrics.capRev / metrics.gross * 100) : 0}%)</small></strong></div>
             <div class="detail-metric"><span>Rec. Broad</span><strong>${money(metrics.broadRev)} <small>(${metrics.gross ? Math.round(metrics.broadRev / metrics.gross * 100) : 0}%)</small></strong></div>
             <div class="detail-metric"><span>Rec. Bruta</span><strong>${money(metrics.gross)}</strong></div>
@@ -1528,7 +1535,7 @@
           <div class="scroller" data-route-scroller><table><thead><tr>
             ${sortableHead("Data", "date", route.sort)}
             ${sortableHead("Gasto", "spend", route.sort)}
-            ${sortableHead("Custo", "cost", route.sort)}
+            ${showCost ? sortableHead("Custo", "cost", route.sort) : ""}
             ${sortableHead("Rec. Cap", "cap_rev", route.sort)}
             ${sortableHead("Rec. Broad", "broad_rev", route.sort)}
             ${sortableHead("Rec. Bruta", "rev", route.sort)}
@@ -1540,7 +1547,7 @@
             ${tableRows.length ? tableRows.map(row => `<tr>
               <td>${date(row.date)}</td>
               <td>${moneyPrecise(row.spend)}</td>
-              <td>${moneyPrecise(row.cost)}</td>
+              ${showCost ? `<td>${moneyPrecise(row.cost)}</td>` : ""}
               <td>${moneyPrecise(row.cap_rev)}</td>
               <td>${moneyPrecise(row.broad_rev)}</td>
               <td>${moneyPrecise(row.rev)}</td>
@@ -1548,7 +1555,7 @@
               <td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td>
               <td class="${tone(row.calculatedRoi)}">${roiText(row.calculatedRoi)}</td>
               <td><span class="drawer-status"><i class="dot ${statusClass(row.status)}"></i>${escape(row.status || "sem status")}</span></td>
-            </tr>`).join("") : '<tr><td colspan="10"><div class="empty">Esta campanha não possui resultado neste período.</div></td></tr>'}
+            </tr>`).join("") : `<tr><td colspan="${showCost ? 10 : 9}"><div class="empty">Esta campanha não possui resultado neste período.</div></td></tr>`}
           </tbody></table></div>`;
       }
 
