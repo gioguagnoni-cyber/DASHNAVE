@@ -7,6 +7,7 @@ const residualMigrationUrl = new URL("../supabase/migrations/20260810012536_use_
 const guardMigrationUrl = new URL("../supabase/migrations/20260810013727_enforce_daily_attribution_guards.sql", import.meta.url);
 const multiAccountMigrationUrl = new URL("../supabase/migrations/20260820101159_add_multi_account_currency_isolation.sql", import.meta.url);
 const legacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101201_disable_public_unscoped_dashboard_rpcs.sql", import.meta.url);
+const publicLegacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101202_revoke_public_legacy_dashboard_rpcs.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
@@ -430,6 +431,7 @@ test("accounts isolate currency, dates, queries, caches and advanced RPCs", asyn
 test("database constraints and public RPCs enforce account isolation", async () => {
   const migration = await readFile(multiAccountMigrationUrl, "utf8");
   const legacy = await readFile(legacyRpcMigrationUrl, "utf8");
+  const inheritedLegacy = await readFile(publicLegacyRpcMigrationUrl, "utf8");
 
   assert.match(migration, /create table if not exists public\.dashboard_accounts/);
   assert.match(migration, /unique index if not exists campaigns_account_label_idx[\s\S]*?\(account_id, label\)/);
@@ -439,6 +441,7 @@ test("database constraints and public RPCs enforce account isolation", async () 
   assert.match(migration, /A migração multi-conta alterou valores históricos e foi bloqueada/);
   assert.match(legacy, /revoke execute on function public\.dashboard_summary\(integer, integer\)[\s\S]*?from anon, authenticated/);
   assert.match(legacy, /call campaign_ranking_account instead/);
+  assert.match(inheritedLegacy, /campaign_ranking\(integer, integer, numeric, numeric, text\)[\s\S]*?from public, anon, authenticated/);
 });
 
 test("the action panel reserves space for impact without overlapping campaign names", async () => {
