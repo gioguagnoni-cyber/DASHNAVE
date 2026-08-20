@@ -8,7 +8,7 @@ const guardMigrationUrl = new URL("../supabase/migrations/20260810013727_enforce
 const multiAccountMigrationUrl = new URL("../supabase/migrations/20260820101159_add_multi_account_currency_isolation.sql", import.meta.url);
 const legacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101201_disable_public_unscoped_dashboard_rpcs.sql", import.meta.url);
 const publicLegacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101202_revoke_public_legacy_dashboard_rpcs.sql", import.meta.url);
-const usdTaxMigrationUrl = new URL("../supabase/migrations/20260820180000_remove_usd_meta_tax.sql", import.meta.url);
+const usdTaxMigrationUrl = new URL("../supabase/migrations/20260820155312_remove_usd_meta_tax.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
