@@ -5,6 +5,8 @@ import test from "node:test";
 const dashboardUrl = new URL("../docs/index.html", import.meta.url);
 const residualMigrationUrl = new URL("../supabase/migrations/20260810012536_use_explicit_residual_flag_in_dashboard.sql", import.meta.url);
 const guardMigrationUrl = new URL("../supabase/migrations/20260810013727_enforce_daily_attribution_guards.sql", import.meta.url);
+const multiAccountMigrationUrl = new URL("../supabase/migrations/20260820101159_add_multi_account_currency_isolation.sql", import.meta.url);
+const legacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101201_disable_public_unscoped_dashboard_rpcs.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
@@ -28,7 +30,8 @@ async function dashboardHelpers() {
       return {
         state, calendarDays, comparisonCell, dayCampaignRows, isoShift, modalWindow,
         monthBounds, monthCoverage, monthSummary, periodForPreset, roiForDays, roiForRow,
-        sortRows, roiText, totalRoi, totals, campaignName, deriveDashboard
+        sortRows, roiText, totalRoi, totals, campaignName, deriveDashboard,
+        activeCurrency, financialRule, moneyPrecise, todayIso
       };`
   )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
@@ -40,7 +43,7 @@ test("the GitHub Pages dashboard is the single executable frontend", async () =>
   assert.doesNotThrow(() => new Function(script));
   assert.match(source, /<title>DASHFULL · Performance diária<\/title>/);
   assert.match(source, /const DAILY_FIELDS = ".*spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi/);
-  assert.match(source, /v_daily\?typ=eq\.msgs/);
+  assert.match(source, /v_daily\?account_id=eq\.\$\{state\.accountId\}&typ=eq\.msgs/);
   assert.doesNotMatch(source, /react|next\.js|vinext/i);
 });
 
@@ -61,7 +64,7 @@ test("initial and drill-down queries are paginated and the full history is lazy"
   assert.match(source, /const PAGE_SIZE = 500/);
   assert.match(source, /const apiAll = async path/);
   assert.match(source, /limit=\$\{PAGE_SIZE\}&offset=\$\{offset\}/);
-  assert.match(source, /const daily = await apiAll\(`v_daily\?typ=eq\.msgs&date=gte\.\$\{state\.start\}&date=lte\.\$\{state\.end\}/);
+  assert.match(source, /const daily = await apiAll\(`v_daily\?account_id=eq\.\$\{state\.accountId\}&typ=eq\.msgs&date=gte\.\$\{state\.start\}&date=lte\.\$\{state\.end\}/);
   assert.match(source, /async function loadMonthData/);
   assert.match(source, /async function loadCampaignData/);
   assert.match(source, /monthCache: new Map\(\)/);
@@ -242,7 +245,7 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
 test("residual revenue uses the explicit database flag and stays out of operational recommendations", async () => {
   const source = await dashboardSource();
   const { campaignName, deriveDashboard } = await dashboardHelpers();
-  assert.match(source, /DAILY_FIELDS = ".*residual"/);
+  assert.match(source, /DAILY_FIELDS = ".*residual,account_id,currency,timezone"/);
   assert.match(source, /const operationalDaily = daily\.filter\(row => !isResidual\(row\)\)/);
   assert.match(source, /all\.filter\(row => !isResidual\(row\)\)/);
   assert.match(campaignName({ label:"Campanha antiga", residual:true }), /receita residual/);
@@ -389,10 +392,53 @@ test("campaign details keep their own filters, chart and exact comparisons", asy
 
 test("cost, revenue and concise negative-streak rules remain explicit", async () => {
   const source = await dashboardSource();
-  assert.match(source, /Custo = gasto do Meta Ads \+ 13% de imposto/);
-  assert.match(source, /Receita líquida = GAM − 10% de Rev Share/);
+  assert.match(source, /Custo = gasto do Meta Ads \+ \$\{ratePct\(account\?\.tax_rate \?\? \.13\)\} de imposto/);
+  assert.match(source, /Receita líquida = GAM − \$\{ratePct\(account\?\.rev_share_rate \?\? \.10\)\} de Rev Share/);
   assert.match(source, /detalhe:"ROI negativo, três dias consecutivos\."/);
   assert.doesNotMatch(source, /últimos 3:/);
+});
+
+test("accounts isolate currency, dates, queries, caches and advanced RPCs", async () => {
+  const source = await dashboardSource();
+  const { state, activeCurrency, financialRule, moneyPrecise } = await dashboardHelpers();
+
+  assert.match(source, /dashboard_accounts\?select=meta_account_id,slug,source_name,display_name,currency,timezone,tax_rate,rev_share_rate,alert_min_spend/);
+  assert.match(source, /<select id="account-selector"/);
+  assert.match(source, /params\.set\("conta", account\.slug\)/);
+  assert.match(source, /days\?account_id=eq\.\$\{state\.accountId\}/);
+  assert.match(source, /v_daily\?account_id=eq\.\$\{state\.accountId\}/);
+  assert.match(source, /campaign_ranking_account/);
+  assert.match(source, /operational_alerts_account/);
+  assert.match(source, /data_quality_status_account/);
+  assert.match(source, /p_account_id:state\.accountId/);
+  assert.match(source, /state\.monthCache\.clear\(\)/);
+  assert.match(source, /state\.campaignCache\.clear\(\)/);
+
+  state.accounts = [{
+    meta_account_id:"usd-account",
+    currency:"USD",
+    timezone:"America/Los_Angeles",
+    tax_rate:.13,
+    rev_share_rate:.10
+  }];
+  state.accountId = "usd-account";
+  assert.equal(activeCurrency(), "USD");
+  assert.match(moneyPrecise(12.5), /US\$|USD/);
+  assert.equal(financialRule(), "Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.");
+});
+
+test("database constraints and public RPCs enforce account isolation", async () => {
+  const migration = await readFile(multiAccountMigrationUrl, "utf8");
+  const legacy = await readFile(legacyRpcMigrationUrl, "utf8");
+
+  assert.match(migration, /create table if not exists public\.dashboard_accounts/);
+  assert.match(migration, /unique index if not exists campaigns_account_label_idx[\s\S]*?\(account_id, label\)/);
+  assert.match(migration, /unique index if not exists days_account_date_idx[\s\S]*?\(account_id, date\)/);
+  assert.match(migration, /and c\.account_id = d\.account_id/);
+  assert.match(migration, /where account_id = p_account_id/);
+  assert.match(migration, /A migração multi-conta alterou valores históricos e foi bloqueada/);
+  assert.match(legacy, /revoke execute on function public\.dashboard_summary\(integer, integer\)[\s\S]*?from anon, authenticated/);
+  assert.match(legacy, /call campaign_ranking_account instead/);
 });
 
 test("the action panel reserves space for impact without overlapping campaign names", async () => {

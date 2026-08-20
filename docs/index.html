@@ -52,6 +52,22 @@
       .eyebrow { margin:0 0 2px; color:var(--blue); font-size:10px; font-weight:800; letter-spacing:.13em; }
       h1 { margin:0; font-size:22px; line-height:1; letter-spacing:-.045em; }
       .subtitle { margin:5px 0 0; color:var(--muted); font-size:12px; }
+      .top-actions { display:flex; align-items:center; gap:9px; }
+      .account-control { position:relative; display:grid; gap:3px; }
+      .account-control label { color:#7a899c; font-size:8px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+      .account-select {
+        min-width:196px;
+        border:1px solid var(--line);
+        border-radius:11px;
+        padding:8px 31px 8px 11px;
+        background:#fff;
+        color:#33445d;
+        box-shadow:0 4px 14px #2034540a;
+        font-size:11px;
+        font-weight:800;
+      }
+      .account-select:hover { border-color:#bdcdf0; }
+      .account-select:disabled { cursor:wait; opacity:.65; }
       .date-control { position:relative; z-index:30; }
       .date-trigger {
         display:flex;
@@ -345,7 +361,11 @@
       }
       @media (max-width:650px) {
         .shell { padding-top:19px; }
-        .topbar { align-items:flex-start; }
+        .topbar { align-items:flex-start; flex-wrap:wrap; }
+        .brand { flex:1 1 auto; }
+        .top-actions { width:100%; align-items:end; }
+        .account-control { min-width:0; flex:1; }
+        .account-select { width:100%; min-width:0; }
         .date-trigger { width:42px; height:42px; justify-content:center; padding:0; }
         .date-trigger-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
         .metrics { gap:9px; }
@@ -371,7 +391,7 @@
     <script>
       const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
       const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
-      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude,residual";
+      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude,residual,account_id,currency,timezone";
       const APP = document.getElementById("app");
       const PAGE_SIZE = 500;
       const RANGE_VALUES = new Set([3,7,30]);
@@ -398,16 +418,20 @@
 
       const readHash = () => {
         const params = new URLSearchParams(location.hash.slice(1));
+        const account = params.get("conta") || "";
         const start = params.get("ini") || "";
         const end = params.get("fim") || "";
         const range = Number(params.get("p"));
         return start && end
-          ? { range:7, start, end, preset:"custom" }
-          : { range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"", preset:`last${RANGE_VALUES.has(range) ? range : 7}` };
+          ? { account, range:7, start, end, preset:"custom" }
+          : { account, range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"", preset:`last${RANGE_VALUES.has(range) ? range : 7}` };
       };
 
       const initialHash = readHash();
       const state = {
+        accounts: [],
+        accountId: "",
+        requestedAccount: initialHash.account,
         days: [],
         range: initialHash.range,
         start: initialHash.start,
@@ -431,8 +455,15 @@
       };
 
       const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
-      const money = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL", maximumFractionDigits:0 }).format(number(value));
-      const moneyPrecise = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL", minimumFractionDigits:2, maximumFractionDigits:2 }).format(number(value));
+      const activeAccount = () => state.accounts.find(account => account.meta_account_id === state.accountId) || null;
+      const activeCurrency = () => activeAccount()?.currency || "BRL";
+      const money = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:activeCurrency(), maximumFractionDigits:0 }).format(number(value));
+      const moneyPrecise = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:activeCurrency(), minimumFractionDigits:2, maximumFractionDigits:2 }).format(number(value));
+      const ratePct = value => `${number(value) * 100}%`;
+      const financialRule = () => {
+        const account = activeAccount();
+        return `Custo = gasto do Meta Ads + ${ratePct(account?.tax_rate ?? .13)} de imposto. Receita líquida = GAM − ${ratePct(account?.rev_share_rate ?? .10)} de Rev Share.`;
+      };
       const pct = value => `${number(value) > 0 ? "+" : ""}${number(value).toFixed(1)}%`;
       const date = value => value ? `${value.slice(8,10)}/${value.slice(5,7)}/${value.slice(2,4)}` : "—";
       const shortDate = value => date(value).slice(0,5);
@@ -441,8 +472,12 @@
         return label.charAt(0).toUpperCase() + label.slice(1);
       };
       const todayIso = () => {
-        const current = new Date();
-        return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2,"0")}-${String(current.getDate()).padStart(2,"0")}`;
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone:activeAccount()?.timezone || "America/Sao_Paulo",
+          year:"numeric",month:"2-digit",day:"2-digit"
+        }).formatToParts(new Date());
+        const value = Object.fromEntries(parts.map(part => [part.type,part.value]));
+        return `${value.year}-${value.month}-${value.day}`;
       };
       const isoShift = (value, amount) => {
         const shifted = new Date(`${value}T12:00:00Z`);
@@ -534,6 +569,8 @@
 
       function syncHash() {
         const params = new URLSearchParams();
+        const account = activeAccount();
+        if (account) params.set("conta", account.slug);
         params.set("ini", state.start);
         params.set("fim", state.end);
         history.replaceState(null, "", `${location.pathname}${location.search}#${params}`);
@@ -623,7 +660,8 @@
           const firstRoi = first.cost ? first.profit / first.cost * 100 : 0;
           const lastRoi = last.cost ? last.profit / last.cost * 100 : 0;
           const tendencia = rows.length < 2 ? "indefinida" : lastRoi - firstRoi > 2 ? "subindo" : firstRoi - lastRoi > 2 ? "caindo" : "estável";
-          const recomendacao = all.cost >= 150 && roi < 0 ? "pausar" : all.cost >= 150 && roi >= 20 ? "escalar" : "acompanhar";
+          const minimumSpend = number(activeAccount()?.alert_min_spend || 150);
+          const recomendacao = all.cost >= minimumSpend && roi < 0 ? "pausar" : all.cost >= minimumSpend && roi >= 20 ? "escalar" : "acompanhar";
           let streak = [];
 
           rows.forEach(row => {
@@ -854,6 +892,27 @@
         render({ preserveScroll:true });
       }
 
+      function topbarMarkup() {
+        const account = activeAccount();
+        return `<header class="topbar">
+          <div class="brand"><div class="mark">Df</div><div><p class="eyebrow">${escape(account?.display_name || "DASHFULL")}</p><h1>DASHFULL</h1><p class="subtitle">Performance diária, com decisões claras.</p></div></div>
+          <div class="top-actions">
+            <div class="account-control">
+              <label for="account-selector">Conta de anúncios</label>
+              <select id="account-selector" class="account-select" aria-label="Selecionar conta de anúncios" ${state.accounts.length ? "" : "disabled"}>
+                ${state.accounts.map(item => `<option value="${escape(item.meta_account_id)}" ${item.meta_account_id === state.accountId ? "selected" : ""}>${escape(item.display_name)}</option>`).join("")}
+              </select>
+            </div>
+            <div class="date-control">
+              <button type="button" class="date-trigger" data-date-picker-trigger aria-haspopup="dialog" aria-expanded="${state.datePickerOpen}" aria-label="Alterar período do painel">
+                <span class="calendar-icon" aria-hidden="true"></span><span class="date-trigger-label">${compactPeriod(state.start, state.end)}</span>
+              </button>
+              ${datePickerMarkup()}
+            </div>
+          </div>
+        </header>`;
+      }
+
       function render(options = {}) {
         const preserveScroll = Boolean(options.preserveScroll);
         const scrollTop = preserveScroll ? window.scrollY : 0;
@@ -862,7 +921,8 @@
         const loading = !data;
 
         if (!state.days.length) {
-          APP.innerHTML = '<section class="message"><h2>Não há dias disponíveis</h2><p>Verifique os dados cadastrados no Supabase.</p></section>';
+          APP.innerHTML = `${topbarMarkup()}<section class="message"><h2>Esta conta ainda não tem lançamentos</h2><p>${escape(activeAccount()?.display_name || "A conta selecionada")} está pronta. Os dados aparecerão aqui após o primeiro cruzamento do Meta Ads com o Google Ad Manager.</p></section>`;
+          bind();
           return;
         }
 
@@ -901,19 +961,11 @@
         const qualityNotice = qualityCounts ? `<div class="notice notice-info"><b>i</b><span><b>Qualidade dos dados:</b> ${number(quality.inconsistentes)} inconsistência(s) e ${number(quality.suspeitos)} registro(s) suspeito(s) no período.</span></div>` : "";
         const insightNote = state.insightsUnavailable ? '<p class="insight-note">Os indicadores avançados estão temporariamente indisponíveis; os KPIs, o histórico e os cálculos do período continuam atualizados.</p>' : "";
 
-        APP.innerHTML = `<header class="topbar">
-          <div class="brand"><div class="mark">Df</div><div><p class="eyebrow">DIZZ 1 WAVE</p><h1>DASHFULL</h1><p class="subtitle">Performance diária, com decisões claras.</p></div></div>
-          <div class="date-control">
-            <button type="button" class="date-trigger" data-date-picker-trigger aria-haspopup="dialog" aria-expanded="${state.datePickerOpen}" aria-label="Alterar período do painel">
-              <span class="calendar-icon" aria-hidden="true"></span><span class="date-trigger-label">${compactPeriod(state.start, state.end)}</span>
-            </button>
-            ${datePickerMarkup()}
-          </div>
-        </header>
+        APP.innerHTML = `${topbarMarkup()}
         <div class="workspace">
           ${historyMarkup()}
           <div class="main">
-            <p class="context"><strong>${range}</strong><span class="separator">•</span><span>${days.length} ${days.length === 1 ? "dia com dados" : "dias com dados"}</span>${loading ? '<span class="separator">•</span><span>Atualizando…</span>' : ""}</p>
+            <p class="context"><strong>${range}</strong><span class="separator">•</span><span>${days.length} ${days.length === 1 ? "dia com dados" : "dias com dados"}</span><span class="separator">•</span><span>${escape(activeCurrency())}</span>${loading ? '<span class="separator">•</span><span>Atualizando…</span>' : ""}</p>
             ${partialNotice}${qualityNotice}${insightNote}
             <section class="metrics">
               <article class="metric"><div class="metric-label">Gasto total</div><div class="metric-value">${money(metrics.spend)}</div><div class="metric-foot">${count} campanhas com resultado</div></article>
@@ -961,6 +1013,9 @@
       }
 
       function bind() {
+        document.getElementById("account-selector")?.addEventListener("change", event => {
+          if (event.target.value !== state.accountId) void switchAccount(event.target.value);
+        });
         document.querySelector("[data-date-picker-trigger]")?.addEventListener("click", () => {
           if (state.datePickerOpen) closeDatePicker();
           else openDatePicker();
@@ -1049,11 +1104,12 @@
       const comparisonCell = value => value === undefined ? "—" : roiText(value);
 
       async function loadMonthData(key) {
-        const cached = state.monthCache.get(key);
+        const cacheKey = `${state.accountId}:${key}`;
+        const cached = state.monthCache.get(cacheKey);
         if (cached) return await cached;
         const bounds = monthBounds(key);
         const monthDays = monthDaysForKey(key);
-        const request = apiAll(`v_daily?typ=eq.msgs&date=gte.${bounds.contextStart}&date=lt.${bounds.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`)
+        const request = apiAll(`v_daily?account_id=eq.${state.accountId}&typ=eq.msgs&date=gte.${bounds.contextStart}&date=lt.${bounds.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`)
           .then(contextRows => ({
             contextRows,
             monthRows:contextRows.filter(row => row.date >= bounds.start && row.date < bounds.end),
@@ -1061,20 +1117,20 @@
             monthDays
           }))
           .catch(error => {
-            state.monthCache.delete(key);
+            state.monthCache.delete(cacheKey);
             throw error;
           });
-        state.monthCache.set(key, request);
+        state.monthCache.set(cacheKey, request);
         const result = await request;
-        state.monthCache.set(key, result);
+        state.monthCache.set(cacheKey, result);
         return result;
       }
 
       async function loadCampaignData(id) {
-        const key = String(id);
+        const key = `${state.accountId}:${id}`;
         const cached = state.campaignCache.get(key);
         if (cached) return await cached;
-        const request = apiAll(`v_daily?typ=eq.msgs&campaign_id=eq.${id}&select=${DAILY_FIELDS}&order=date.asc`)
+        const request = apiAll(`v_daily?account_id=eq.${state.accountId}&typ=eq.msgs&campaign_id=eq.${id}&select=${DAILY_FIELDS}&order=date.asc`)
           .catch(error => {
             state.campaignCache.delete(key);
             throw error;
@@ -1302,7 +1358,7 @@
             <p class="detail-sub">${coverageLabel}. Clique em um dia com dados para visualizar suas campanhas.</p>
           </div>
           ${coverage.missing.length ? `<p class="coverage-warning"><strong>Atenção:</strong> ainda não há dados importados para ${missingLabel}.</p>` : ""}
-          <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share. ROI calculado sobre o custo total.</p>
+          <p class="tax-note">${escape(financialRule())} ROI calculado sobre o custo total.</p>
           <div class="scroller" data-route-scroller><table class="month-table"><thead><tr>
             ${sortableHead("Data", "date", route.sort)}
             ${sortableHead("Campanhas", "campaigns", route.sort)}
@@ -1383,7 +1439,7 @@
           </div>
           ${missingMetaSpend ? '<p class="coverage-warning"><strong>Atenção:</strong> há receita de campanha ativa sem gasto do Meta Ads registrado neste dia. Confirme o arquivo do Meta Ads antes de interpretar o símbolo ∞ como retorno real.</p>' : ""}
           ${residualRows.length ? `<p class="residual-note">${residualRows.length} ${residualRows.length === 1 ? "linha contém" : "linhas contêm"} apenas receita residual de sufixo sem campanha ativa.</p>` : ""}
-          <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
+          <p class="tax-note">${escape(financialRule())}</p>
           <div class="table-tools"><input data-day-search value="${escape(route.search || "")}" placeholder="Buscar campanha, nicho ou código (ex: MX)" aria-label="Buscar campanha no dia" /></div>
           <div class="scroller" data-route-scroller><table class="day-table"><thead><tr>
             ${sortableHead("Campanha", "label", route.sort)}
@@ -1461,7 +1517,7 @@
             <div class="detail-metric"><span>Lucro</span><strong class="${tone(metrics.profit)}">${money(metrics.profit)}</strong></div>
             <div class="detail-metric"><span>ROI</span><strong class="${tone(roi)}">${roiText(roi)}</strong></div>
           </div>
-          <p class="tax-note">Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.</p>
+          <p class="tax-note">${escape(financialRule())}</p>
           <p class="detail-status"><i class="dot ${statusClass(latest?.status)}"></i>Status no último dia do período: <strong>${escape(latest?.status || "sem status")}</strong></p>
           ${comparisonMarkup(route.rows, selected)}
           <section class="modal-chart">
@@ -1609,10 +1665,12 @@
       }
 
       async function enrichDashboard(first, last, requestId) {
+        const account = activeAccount();
+        const minimumSpend = number(account?.alert_min_spend || 150);
         const results = await Promise.allSettled([
-          rpc("campaign_ranking", { di_ini:first, di_fim:last, min_spend:150, roi_meta:20, exclude_prefix:null }),
-          rpc("operational_alerts", { di_ini:first, di_fim:last, min_spend:150, roi_meta:20 }),
-          rpc("data_quality_status", { di_ini:first, di_fim:last })
+          rpc("campaign_ranking_account", { p_account_id:state.accountId, di_ini:first, di_fim:last, min_spend:minimumSpend, roi_meta:20, exclude_prefix:null }),
+          rpc("operational_alerts_account", { p_account_id:state.accountId, di_ini:first, di_fim:last, min_spend:minimumSpend, roi_meta:20 }),
+          rpc("data_quality_status_account", { p_account_id:state.accountId, di_ini:first, di_fim:last })
         ]);
         if (requestId !== state.loadId || !state.data) return;
 
@@ -1645,25 +1703,60 @@
         render(options);
 
         try {
-          const daily = await apiAll(`v_daily?typ=eq.msgs&date=gte.${state.start}&date=lte.${state.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`);
+          const daily = await apiAll(`v_daily?account_id=eq.${state.accountId}&typ=eq.msgs&date=gte.${state.start}&date=lte.${state.end}&select=${DAILY_FIELDS}&order=date.asc,campaign_id.asc`);
           if (requestId !== state.loadId) return;
           state.data = deriveDashboard(daily);
           render({ preserveScroll:Boolean(options.preserveScroll) });
           void enrichDashboard(first, last, requestId);
         } catch {
           if (requestId !== state.loadId) return;
-          APP.innerHTML = '<section class="message"><h2>Não foi possível atualizar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';
-          document.getElementById("retry").addEventListener("click", start);
+          APP.innerHTML = `${topbarMarkup()}<section class="message"><h2>Não foi possível atualizar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>`;
+          bind();
+          document.getElementById("retry")?.addEventListener("click", () => load({ preserveScroll:true }));
+        }
+      }
+
+      async function switchAccount(accountId, options = {}) {
+        closeNavigationModal({ restoreFocus:false });
+        const account = state.accounts.find(item => item.meta_account_id === accountId);
+        if (!account) throw new Error("Conta selecionada não está disponível.");
+        ++state.loadId;
+        state.accountId = account.meta_account_id;
+        state.days = [];
+        state.data = null;
+        state.query = "";
+        state.datePickerOpen = false;
+        state.monthCache.clear();
+        state.campaignCache.clear();
+        state.insightsUnavailable = false;
+        if (!options.preservePeriod) {
+          state.range = 7;
+          state.start = "";
+          state.end = "";
+          state.preset = "last7";
+        }
+        render({ preserveScroll:Boolean(options.preserveScroll) });
+        try {
+          state.days = await apiAll(`days?account_id=eq.${state.accountId}&select=di,date,label,badge,account_id&order=di.asc`);
+          ensureInitialPeriod();
+          syncHash();
+          await load({ preserveScroll:Boolean(options.preserveScroll) });
+        } catch {
+          APP.innerHTML = `${topbarMarkup()}<section class="message"><h2>Não foi possível carregar esta conta</h2><p>Os dados da conta selecionada não foram alterados. Tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>`;
+          bind();
+          document.getElementById("retry")?.addEventListener("click", () => switchAccount(state.accountId,{ preservePeriod:true, preserveScroll:true }));
         }
       }
 
       async function start() {
         closeNavigationModal({ restoreFocus:false });
         try {
-          state.days = await api("days?select=di,date,label,badge&order=di.asc");
-          ensureInitialPeriod();
-          syncHash();
-          await load();
+          state.accounts = await apiAll("dashboard_accounts?select=meta_account_id,slug,source_name,display_name,currency,timezone,tax_rate,rev_share_rate,alert_min_spend&order=display_name.asc");
+          const selected = state.accounts.find(account => account.slug === state.requestedAccount || account.meta_account_id === state.requestedAccount)
+            || state.accounts.find(account => account.meta_account_id === "1417197509632503")
+            || state.accounts[0];
+          if (!selected) throw new Error("Nenhuma conta habilitada.");
+          await switchAccount(selected.meta_account_id,{ preservePeriod:true });
         } catch {
           APP.innerHTML = '<section class="message"><h2>Não foi possível iniciar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';
           document.getElementById("retry").addEventListener("click", start);
@@ -1672,6 +1765,15 @@
 
       window.addEventListener("hashchange", () => {
         const next = readHash();
+        const requested = state.accounts.find(account => account.slug === next.account || account.meta_account_id === next.account);
+        if (requested && requested.meta_account_id !== state.accountId) {
+          state.range = next.range;
+          state.start = next.start;
+          state.end = next.end;
+          state.preset = next.preset;
+          void switchAccount(requested.meta_account_id,{ preservePeriod:true, preserveScroll:true });
+          return;
+        }
         if (next.range === state.range && next.start === state.start && next.end === state.end) return;
         state.range = next.range;
         state.start = next.start;
