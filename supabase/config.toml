@@ -1,0 +1,3 @@
+# Only the new isolated function uses custom authentication; see handler.mjs.
+[functions.campaign-scheduler]
+verify_jwt = false

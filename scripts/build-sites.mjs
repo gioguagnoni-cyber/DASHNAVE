@@ -9,12 +9,20 @@ const serverPath = resolve(distPath, "server/index.js");
 const hostingSource = resolve(root, ".openai/hosting.json");
 const hostingTarget = resolve(distPath, ".openai/hosting.json");
 const html = await readFile(sourcePath, "utf8");
+const assets = Object.fromEntries(await Promise.all([
+  ["/assets/schedules.mjs","text/javascript; charset=utf-8"],
+  ["/assets/schedule-core.mjs","text/javascript; charset=utf-8"],
+  ["/assets/schedules.css","text/css; charset=utf-8"]
+].map(async ([path,type]) => [path,{type,content:await readFile(resolve(root,`docs${path}`),"utf8")}] )));
 
 const worker = `const HTML = ${JSON.stringify(html)};
+const ASSETS = ${JSON.stringify(assets)};
 
 export default {
   async fetch(request) {
     const url = new URL(request.url);
+    const asset = ASSETS[url.pathname];
+    if (asset) return new Response(asset.content, { headers: { "Content-Type":asset.type, "Cache-Control":"public, max-age=0, must-revalidate", "X-Content-Type-Options":"nosniff" } });
     if (url.pathname !== "/" && url.pathname !== "/index.html") {
       return new Response("Not Found", {
         status: 404,

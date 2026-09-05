@@ -801,7 +801,23 @@
                 </section>`;
             }).join("")}
           </div>
+          ${schedulesButton()}
         </aside>`;
+      }
+
+      const schedulesButton = () => `<div style="border-top:1px solid var(--line);padding:12px 16px"><button type="button" data-open-schedules class="month-btn" style="padding:8px 0" aria-haspopup="dialog"><span><b>◷ Agendamentos</b><small>Horários das campanhas</small></span><i aria-hidden="true">›</i></button><small data-schedules-error style="color:var(--red)" role="status"></small></div>`;
+
+      async function openSchedulesArea(button) {
+        const account = activeAccount();
+        if (!account) return;
+        button.disabled = true;
+        try {
+          const { openSchedules } = await import("./assets/schedules.mjs");
+          await openSchedules({ account:{...account}, url:SUPABASE_URL, key:SUPABASE_KEY, opener:button });
+        } catch {
+          const error = document.querySelector("[data-schedules-error]");
+          if (error) error.textContent = "Não foi possível abrir. Tente novamente.";
+        } finally { button.disabled = false; }
       }
 
       const longDate = value => new Intl.DateTimeFormat("pt-BR", {
@@ -925,7 +941,7 @@
         const loading = !data;
 
         if (!state.days.length) {
-          APP.innerHTML = `${topbarMarkup()}<section class="message"><h2>Esta conta ainda não tem lançamentos</h2><p>${escape(activeAccount()?.display_name || "A conta selecionada")} está pronta. Os dados aparecerão aqui após o primeiro cruzamento do Meta Ads com o Google Ad Manager.</p></section>`;
+          APP.innerHTML = `${topbarMarkup()}<section class="message"><h2>Esta conta ainda não tem lançamentos</h2><p>${escape(activeAccount()?.display_name || "A conta selecionada")} está pronta. Os dados aparecerão aqui após o primeiro cruzamento do Meta Ads com o Google Ad Manager.</p>${schedulesButton()}</section>`;
           bind();
           return;
         }
@@ -1017,6 +1033,7 @@
       }
 
       function bind() {
+        document.querySelectorAll("[data-open-schedules]").forEach(button => button.addEventListener("click", () => void openSchedulesArea(button)));
         document.getElementById("account-selector")?.addEventListener("change", event => {
           if (event.target.value !== state.accountId) void switchAccount(event.target.value);
         });
