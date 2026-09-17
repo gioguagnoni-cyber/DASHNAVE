@@ -58,3 +58,22 @@ Para CSV do Meta, substitua `--meta-snapshot` por `--meta` e, se necessário, in
 ## Aplicação
 
 Antes de aplicar `atomic-import.sql`, revise `audit-summary.json`. A aplicação deve ser feita por uma conexão administrativa ou pelo conector Supabase. Em seguida, compare os totais da view `v_daily` com o resumo e execute os advisors de segurança e desempenho.
+
+## Receita de Push Notification
+
+Push é importado em tabelas próprias e nunca entra em `msgs_results`. Isso preserva o
+ranking, o lucro e o ROI das campanhas Meta Ads.
+
+```bash
+node scripts/prepare-push-import.mjs \
+  --push "/caminho/relatorio-push.csv" \
+  --account-id 2948780535467215 \
+  --date 2026-09-17 \
+  --badge parcial \
+  --out-dir "/caminho/saida"
+```
+
+O arquivo gerado é um retrato completo do dia. Uma nova parcial substitui as linhas
+anteriores daquela data; ela nunca é somada à parcial precedente. Revise
+`audit-summary.json` e aplique `atomic-push-import.sql`. A receita permanece bruta
+até que exista uma regra explícita de custo ou revenue share para Push.

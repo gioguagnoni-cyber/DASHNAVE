@@ -150,6 +150,71 @@ export function parseGamReport(text) {
   return { currency, period, generatedAt, sourceRows, bySuffix };
 }
 
+export function normalizePushCampaign(value) {
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^utm_campaign=(.+)$/i);
+  if (!match) return "";
+  return match[1].trim().replace(/\s+/g, "-").toUpperCase();
+}
+
+export function parsePushGamReport(text) {
+  const rows = parseCsv(text);
+  const headerIndex = rows.findIndex(row => String(row[0] ?? "").trim() === "Chaves-valor");
+  if (headerIndex < 0) throw new Error("Cabeçalho 'Chaves-valor' não encontrado no relatório Push.");
+  const header = rows[headerIndex].map(value => String(value ?? "").trim());
+  const indexOf = label => header.findIndex(value => value.toLowerCase() === label.toLowerCase());
+  const indexes = {
+    impressions:indexOf("Total de impressões"),
+    unfilled:indexOf("Impressões não preenchidas"),
+    viewable:indexOf("Total de impressões visíveis do Active View"),
+    ctr:indexOf("CTR Total"),
+    revenue:indexOf("Receita do Ad Exchange"),
+    ecpm:indexOf("eCPM médio do Ad Exchange"),
+    clicks:indexOf("Total de cliques"),
+  };
+  if (Object.values(indexes).some(index => index < 0)) throw new Error("O relatório Push não contém todas as métricas obrigatórias.");
+  const currency = String(metadataValue(rows, "Moeda do relatório") ?? "").trim().toUpperCase();
+  const period = String(metadataValue(rows, "Período") ?? "").trim();
+  const generatedAt = String(metadataValue(rows, "Gerado em data/hora") ?? "").trim();
+  const timezone = String(metadataValue(rows, "Fuso horário") ?? "").trim();
+  const reportId = String(metadataValue(rows, "ID do resultado do relatório") ?? "").trim();
+  const filter = String(metadataValue(rows, "Filtros") ?? "").trim();
+  if (!currency || !timezone || !reportId) throw new Error("Metadados obrigatórios do relatório Push não encontrados.");
+  if (!/utm_campaign=PH/i.test(filter)) throw new Error("O relatório Push não está filtrado por utm_campaign=PH.");
+
+  const campaigns = [];
+  const seen = new Set();
+  const parseMetricDecimal = value => {
+    const raw = String(value ?? "").trim().replace(/[^\d,.-]/g, "");
+    if (!raw) return 0;
+    if (raw.includes(",") && raw.includes(".")) {
+      return Number(raw.lastIndexOf(",") > raw.lastIndexOf(".") ? raw.replace(/\./g, "").replace(",", ".") : raw.replace(/,/g, "")) || 0;
+    }
+    return Number(raw.replace(",", ".")) || 0;
+  };
+  for (const row of rows.slice(headerIndex + 1)) {
+    const sourceKey = String(row[0] ?? "").trim();
+    if (!/^utm_campaign=/i.test(sourceKey)) continue;
+    const utmCampaign = normalizePushCampaign(sourceKey);
+    if (!utmCampaign) continue;
+    if (seen.has(utmCampaign)) throw new Error(`UTM Push duplicada no relatório: ${utmCampaign}.`);
+    seen.add(utmCampaign);
+    campaigns.push({
+      utm_campaign:utmCampaign,
+      source_key:sourceKey,
+      impressions:Math.trunc(parseLocalizedNumber(row[indexes.impressions] ?? 0)),
+      unfilled_impressions:Math.trunc(parseLocalizedNumber(row[indexes.unfilled] ?? 0)),
+      viewable_impressions:Math.trunc(parseLocalizedNumber(row[indexes.viewable] ?? 0)),
+      clicks:Math.trunc(parseLocalizedNumber(row[indexes.clicks] ?? 0)),
+      source_ctr:roundHalfUp(parseMetricDecimal(row[indexes.ctr] ?? 0),8),
+      gross_revenue:fromCents(toCents(row[indexes.revenue] ?? 0)),
+      source_ecpm:roundHalfUp(parseMetricDecimal(row[indexes.ecpm] ?? 0),6),
+    });
+  }
+  if (!campaigns.length) throw new Error("Nenhuma campanha utm_campaign foi encontrada no relatório Push.");
+  return { currency,period,generatedAt,timezone,reportId,filter,campaigns };
+}
+
 const META_HEADERS = {
   id:["ID da campanha","Campaign ID","Identificação da campanha"],
   name:["Nome da campanha","Campaign name"],
@@ -361,6 +426,84 @@ function sqlValue(value) {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "null";
   return `'${String(value).replaceAll("'","''")}'`;
+}
+
+export function buildPushAtomicSql({ account, reportingDate, badge, report, provenance }) {
+  if (report.currency !== account.currency) {
+    throw new Error(`Moeda Push ${report.currency} difere da conta ${account.currency}.`);
+  }
+  const isPartial = badge === "parcial";
+  const campaignValues = report.campaigns
+    .map(row => `  (${sqlValue(account.meta_account_id)},${sqlValue(row.utm_campaign)},${sqlValue(row.utm_campaign)})`)
+    .join(",\n");
+  const resultValues = report.campaigns
+    .map(row => `  select
+    ${sqlValue(account.meta_account_id)},c.id,date ${sqlValue(reportingDate)},${sqlValue(report.reportId)},
+    ${sqlValue(provenance.generated_at_iso)}::timestamptz,${sqlValue(report.timezone)},${sqlValue(report.currency)},${isPartial},
+    ${row.impressions},${row.unfilled_impressions},${row.viewable_impressions},${row.clicks},
+    ${row.source_ctr},${row.gross_revenue},${row.source_ecpm},${sqlValue(row.source_key)},${sqlValue(provenance.source_sha256)}
+  from public.push_campaigns c
+    where c.account_id=${sqlValue(account.meta_account_id)} and c.utm_campaign=${sqlValue(row.utm_campaign)}`)
+    .join("\nunion all\n");
+  const totals = report.campaigns.reduce((all,row) => ({
+    rows:all.rows+1,
+    impressions:all.impressions+row.impressions,
+    clicks:all.clicks+row.clicks,
+    gross_revenue:roundHalfUp(all.gross_revenue+row.gross_revenue,2),
+  }),{rows:0,impressions:0,clicks:0,gross_revenue:0});
+  const audit = {
+    viewable_exceeds_total:report.campaigns
+      .filter(row => row.viewable_impressions > row.impressions)
+      .map(row => row.utm_campaign)
+  };
+  return {
+    totals,
+    audit,
+    sql:`begin;
+do $guard$
+begin
+  if not exists (
+    select 1 from public.dashboard_accounts
+    where meta_account_id=${sqlValue(account.meta_account_id)}
+      and currency=${sqlValue(account.currency)}
+      and enabled
+  ) then
+    raise exception 'Conta Push/moeda não cadastrada ou desabilitada';
+  end if;
+end
+$guard$;
+
+insert into public.push_campaigns (account_id,utm_campaign,display_name)
+values
+${campaignValues}
+on conflict (account_id,utm_campaign) do update
+set display_name=excluded.display_name,updated_at=now();
+
+delete from public.push_daily_results
+where account_id=${sqlValue(account.meta_account_id)}
+  and reporting_date=date ${sqlValue(reportingDate)};
+
+insert into public.push_daily_results (
+  account_id,campaign_id,reporting_date,report_id,generated_at,report_timezone,
+  currency,is_partial,impressions,unfilled_impressions,viewable_impressions,
+  clicks,source_ctr,gross_revenue,source_ecpm,source_key,source_sha256
+)
+${resultValues};
+
+insert into private.push_import_batches (
+  batch_key,account_id,reporting_date,report_id,generated_at,is_partial,currency,
+  report_timezone,source_name,source_sha256,status,totals,audit,completed_at
+) values (
+  ${sqlValue(provenance.source_sha256)},${sqlValue(account.meta_account_id)},date ${sqlValue(reportingDate)},
+  ${sqlValue(report.reportId)},${sqlValue(provenance.generated_at_iso)}::timestamptz,${isPartial},
+  ${sqlValue(report.currency)},${sqlValue(report.timezone)},${sqlValue(provenance.source_name)},
+  ${sqlValue(provenance.source_sha256)},'applied',${sqlValue(JSON.stringify(totals))}::jsonb,
+  ${sqlValue(JSON.stringify(audit))}::jsonb,now()
+)
+on conflict (batch_key) do update set
+  status='applied',totals=excluded.totals,audit=excluded.audit,completed_at=now();
+commit;`
+  };
 }
 
 export function buildAtomicSql(prepared, provenance) {

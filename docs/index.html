@@ -53,8 +53,8 @@
       h1 { margin:0; font-size:22px; line-height:1; letter-spacing:-.045em; }
       .subtitle { margin:5px 0 0; color:var(--muted); font-size:12px; }
       .top-actions { display:flex; align-items:center; gap:9px; }
-      .account-control { position:relative; display:grid; gap:3px; }
-      .account-control label { color:#7a899c; font-size:8px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+      .account-control,.view-control { position:relative; display:grid; gap:3px; }
+      .account-control label,.view-control label { color:#7a899c; font-size:8px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
       .account-select {
         min-width:196px;
         border:1px solid var(--line);
@@ -68,6 +68,7 @@
       }
       .account-select:hover { border-color:#bdcdf0; }
       .account-select:disabled { cursor:wait; opacity:.65; }
+      .view-select { min-width:124px; }
       .date-control { position:relative; z-index:30; }
       .date-trigger {
         display:flex;
@@ -190,6 +191,7 @@
       .notice-info { border-color:#d8e3f6; background:#f4f8ff; color:#40577d; }
       .insight-note { margin:0 2px 12px; color:var(--muted); font-size:10px; }
       .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; margin-bottom:13px; }
+      .metrics.metrics-six { grid-template-columns:repeat(3,minmax(0,1fr)); }
       .metric { min-height:131px; padding:17px; }
       .metric-label { color:var(--muted); font-size:12px; font-weight:750; }
       .metric-value { margin:10px 0 9px; font-size:clamp(21px,2.2vw,29px); font-weight:800; letter-spacing:-.055em; }
@@ -207,6 +209,10 @@
       .legend i { width:7px; height:7px; border-radius:50%; }
       .chart { display:grid; min-height:250px; place-items:center; overflow:hidden; }
       .chart svg { display:block; width:100%; height:auto; max-height:270px; }
+      .channel-note { margin:0 0 13px; border:1px solid #d8e3f6; border-radius:12px; padding:11px 13px; background:#f4f8ff; color:#40577d; font-size:12px; }
+      .channel-note strong { color:#294a7e; }
+      .push-table tbody tr[data-push-campaign] { cursor:pointer; }
+      .push-table tbody tr[data-push-campaign]:hover { background:#f7faff; }
       .axis { fill:#8390a3; font-size:10px; }
       .alerts { display:grid; }
       .alert {
@@ -344,6 +350,7 @@
 
       @media (max-width:1220px) {
         .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .metrics.metrics-six { grid-template-columns:repeat(2,minmax(0,1fr)); }
         .content { grid-template-columns:1fr; }
       }
       @media (max-width:980px) {
@@ -365,7 +372,9 @@
         .brand { flex:1 1 auto; }
         .top-actions { width:100%; align-items:end; }
         .account-control { min-width:0; flex:1; }
+        .view-control { min-width:0; flex:1; }
         .account-select { width:100%; min-width:0; }
+        .view-select { width:100%; min-width:0; }
         .date-trigger { width:42px; height:42px; justify-content:center; padding:0; }
         .date-trigger-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
         .metrics { gap:9px; }
@@ -392,6 +401,8 @@
       const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
       const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
       const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude,residual,account_id,currency,timezone";
+      const PUSH_FIELDS = "id,account_id,campaign_id,utm_campaign,label,date,report_id,generated_at,report_timezone,currency,is_partial,impressions,unfilled_impressions,viewable_impressions,clicks,source_ctr,gross_revenue,source_ecpm,calculated_ctr,calculated_ecpm";
+      const SOURCE_VIEWS = new Set(["meta","push","combined"]);
       const APP = document.getElementById("app");
       const PAGE_SIZE = 500;
       const RANGE_VALUES = new Set([3,7,30]);
@@ -419,18 +430,20 @@
       const readHash = () => {
         const params = new URLSearchParams(location.hash.slice(1));
         const account = params.get("conta") || "";
+        const sourceView = SOURCE_VIEWS.has(params.get("visao")) ? params.get("visao") : "meta";
         const start = params.get("ini") || "";
         const end = params.get("fim") || "";
         const range = Number(params.get("p"));
         return start && end
-          ? { account, range:7, start, end, preset:"custom" }
-          : { account, range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"", preset:`last${RANGE_VALUES.has(range) ? range : 7}` };
+          ? { account, sourceView, range:7, start, end, preset:"custom" }
+          : { account, sourceView, range:RANGE_VALUES.has(range) ? range : 7, start:"", end:"", preset:`last${RANGE_VALUES.has(range) ? range : 7}` };
       };
 
       const initialHash = readHash();
       const state = {
         accounts: [],
         accountId: "",
+        sourceView: initialHash.sourceView,
         requestedAccount: initialHash.account,
         days: [],
         range: initialHash.range,
@@ -450,6 +463,7 @@
         modalBaseScroll: 0,
         modalOpener: null,
         rankingSort: { key:"profit", direction:"desc" },
+        pushSort: { key:"gross_revenue", direction:"desc" },
         loadId: 0,
         insightsUnavailable: false
       };
@@ -575,6 +589,7 @@
         const params = new URLSearchParams();
         const account = activeAccount();
         if (account) params.set("conta", account.slug);
+        params.set("visao", state.sourceView);
         params.set("ini", state.start);
         params.set("fim", state.end);
         history.replaceState(null, "", `${location.pathname}${location.search}#${params}`);
@@ -611,6 +626,53 @@
         capRev:all.capRev + number(row.cap_rev),
         broadRev:all.broadRev + number(row.broad_rev)
       }), { spend:0, cost:0, gross:0, revenue:0, profit:0, capRev:0, broadRev:0 });
+
+      const pushTotals = rows => rows.reduce((all,row) => ({
+        revenue:all.revenue + number(row.gross_revenue),
+        impressions:all.impressions + number(row.impressions),
+        clicks:all.clicks + number(row.clicks)
+      }),{ revenue:0,impressions:0,clicks:0 });
+
+      const pushCtr = metrics => metrics.impressions ? metrics.clicks / metrics.impressions * 100 : 0;
+      const pushEcpm = metrics => metrics.impressions ? metrics.revenue / metrics.impressions * 1000 : 0;
+
+      function pushDailySummary(rows) {
+        const grouped = new Map();
+        rows.forEach(row => {
+          const item = grouped.get(row.date) || { date:row.date,rows:[],is_partial:false };
+          item.rows.push(row);
+          item.is_partial ||= row.is_partial === true || row.is_partial === "true";
+          grouped.set(row.date,item);
+        });
+        return [...grouped.values()].map(item => {
+          const metrics = pushTotals(item.rows);
+          return {
+            ...item,...metrics,
+            campaigns:new Set(item.rows.map(row => row.campaign_id)).size,
+            ctr:pushCtr(metrics),ecpm:pushEcpm(metrics)
+          };
+        }).sort((a,b) => a.date.localeCompare(b.date));
+      }
+
+      function pushCampaignRanking(rows) {
+        const grouped = new Map();
+        rows.forEach(row => {
+          const item = grouped.get(row.campaign_id) || {
+            campaign_id:row.campaign_id,label:row.label,utm_campaign:row.utm_campaign,rows:[]
+          };
+          item.rows.push(row);
+          grouped.set(row.campaign_id,item);
+        });
+        return [...grouped.values()].map(item => {
+          const metrics = pushTotals(item.rows);
+          return {
+            ...item,...metrics,
+            gross_revenue:metrics.revenue,
+            ctr:pushCtr(metrics),ecpm:pushEcpm(metrics),
+            days:new Set(item.rows.map(row => row.date)).size
+          };
+        });
+      }
 
       const dailyRoi = row => {
         const cost = number(row.cost);
@@ -774,6 +836,29 @@
         </svg>`;
       }
 
+      function pushChart(rows, ariaLabel) {
+        const points = pushDailySummary(rows);
+        if (!points.length) return '<div class="empty">Não há resultado de Push neste período.</div>';
+        const width = 720, height = 245, padding = { top:14, right:14, bottom:29, left:14 };
+        const innerWidth = width - padding.left - padding.right;
+        const innerHeight = height - padding.top - padding.bottom;
+        const maxRevenue = Math.max(...points.map(row => row.revenue), 1);
+        const maxClicks = Math.max(...points.map(row => row.clicks), 1);
+        const x = index => padding.left + (points.length === 1 ? innerWidth / 2 : index / (points.length - 1) * innerWidth);
+        const revenueY = value => padding.top + innerHeight - value / maxRevenue * innerHeight;
+        const clickY = value => padding.top + innerHeight - value / maxClicks * innerHeight;
+        const barWidth = Math.max(8, Math.min(24, innerWidth / points.length * .45));
+        const every = Math.max(1, Math.ceil(points.length / 6));
+        const bars = points.map((row, index) => {
+          const label = index % every === 0 || index === points.length - 1
+            ? '<text class="axis" x="' + x(index) + '" y="' + (height - 8) + '" text-anchor="middle">' + shortDate(row.date) + '</text>' : '';
+          return '<g><rect x="' + (x(index) - barWidth / 2) + '" y="' + revenueY(row.revenue) + '" width="' + barWidth + '" height="' + Math.max(0, padding.top + innerHeight - revenueY(row.revenue)) + '" rx="3" fill="#84ceb4"/>' + label + '</g>';
+        }).join('');
+        const line = points.map((row, index) => x(index) + ',' + clickY(row.clicks)).join(' ');
+        const dots = points.map((row, index) => '<circle cx="' + x(index) + '" cy="' + clickY(row.clicks) + '" r="2.7" fill="#245dd8"/>').join('');
+        return '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + escape(ariaLabel || 'Evolução diária da receita e dos cliques de Push') + '">' + bars + '<polyline fill="none" points="' + line + '" stroke="#245dd8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' + dots + '</svg>';
+      }
+
       function historyMarkup() {
         const months = new Map();
         state.days.forEach(day => {
@@ -907,6 +992,14 @@
                 ${state.accounts.map(item => `<option value="${escape(item.meta_account_id)}" ${item.meta_account_id === state.accountId ? "selected" : ""}>${escape(item.display_name)}</option>`).join("")}
               </select>
             </div>
+            <div class="view-control">
+              <label for="source-view">Visão</label>
+              <select id="source-view" class="account-select view-select" aria-label="Selecionar visão de dados">
+                <option value="meta" ${state.sourceView === "meta" ? "selected" : ""}>Meta Ads</option>
+                <option value="push" ${state.sourceView === "push" ? "selected" : ""}>Push</option>
+                <option value="combined" ${state.sourceView === "combined" ? "selected" : ""}>Consolidado</option>
+              </select>
+            </div>
             <div class="date-control">
               <button type="button" class="date-trigger" data-date-picker-trigger aria-haspopup="dialog" aria-expanded="${state.datePickerOpen}" aria-label="Alterar período do painel">
                 <span class="calendar-icon" aria-hidden="true"></span><span class="date-trigger-label">${compactPeriod(state.start, state.end)}</span>
@@ -917,9 +1010,69 @@
         </header>`;
       }
 
+      function renderPush(options = {}) {
+        const preserveScroll = Boolean(options.preserveScroll);
+        const scrollTop = preserveScroll ? window.scrollY : 0;
+        const allRows = state.data?.pushRows || [];
+        const rows = rowsForRange(allRows, state.start, state.end);
+        const metrics = pushTotals(rows);
+        const daily = pushDailySummary(rows);
+        const ranking = pushCampaignRanking(rows).sort((a,b) => number(b.gross_revenue) - number(a.gross_revenue));
+        const partialDates = daily.filter(item => item.is_partial).map(item => date(item.date));
+        const range = state.start && state.end ? date(state.start) + " → " + date(state.end) : "Sem período selecionado";
+        const notice = partialDates.length ? '<div class="notice"><b>⚠</b><span><b>Dados parciais:</b> ' + partialDates.map(escape).join(", ") + '. Decisões deste período merecem conferência adicional.</span></div>' : "";
+        const filtered = ranking.filter(row => !state.query || (row.utm_campaign + " " + row.label).toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR")));
+        const body = filtered.map(row => '<tr class="drill-row" tabindex="0" role="button" data-push-campaign="' + row.campaign_id + '"><td class="campaign">' + escape(row.utm_campaign) + '</td><td class="positive">' + moneyPrecise(row.gross_revenue) + '</td><td>' + new Intl.NumberFormat("pt-BR").format(row.impressions) + '</td><td>' + new Intl.NumberFormat("pt-BR").format(row.clicks) + '</td><td>' + row.ctr.toFixed(2) + '%</td><td>' + moneyPrecise(row.ecpm) + '</td><td>' + row.days + '</td></tr>').join("") || '<tr><td colspan="7"><div class="empty">Nenhuma campanha Push encontrada neste período.</div></td></tr>';
+        APP.innerHTML = topbarMarkup() +
+          '<div class="workspace">' + historyMarkup() + '<div class="main">' +
+          '<p class="context"><strong>' + range + '</strong><span class="separator">•</span><span>' + daily.length + ' ' + (daily.length === 1 ? "dia" : "dias") + ' de Push</span><span class="separator">•</span><span>' + escape(activeCurrency()) + '</span></p>' +
+          notice +
+          '<div class="channel-note"><b>Visão Push Notification</b><span>Receita bruta por UTM campaign, separada do Meta Ads. Custos, imposto e lucro não são inferidos sem uma fonte de custo Push.</span></div>' +
+          '<section class="metrics metrics-six"><article class="metric"><div class="metric-label">Receita Push</div><div class="metric-value positive">' + money(metrics.revenue) + '</div><div class="metric-foot">Receita bruta do Ad Exchange</div></article>' +
+          '<article class="metric"><div class="metric-label">Impressões</div><div class="metric-value">' + new Intl.NumberFormat("pt-BR").format(metrics.impressions) + '</div><div class="metric-foot">Total no período</div></article>' +
+          '<article class="metric"><div class="metric-label">Cliques</div><div class="metric-value">' + new Intl.NumberFormat("pt-BR").format(metrics.clicks) + '</div><div class="metric-foot">Total no período</div></article>' +
+          '<article class="metric"><div class="metric-label">CTR</div><div class="metric-value">' + pushCtr(metrics).toFixed(2) + '%</div><div class="metric-foot">Cliques ÷ impressões</div></article>' +
+          '<article class="metric"><div class="metric-label">eCPM médio</div><div class="metric-value">' + moneyPrecise(pushEcpm(metrics)) + '</div><div class="metric-foot">Receita por mil impressões</div></article>' +
+          '<article class="metric"><div class="metric-label">Campanhas UTM</div><div class="metric-value">' + ranking.length + '</div><div class="metric-foot">Com receita no período</div></article></section>' +
+          '<section class="content"><article class="panel"><div class="panel-head"><div><h2>Evolução diária do Push</h2><p>Receita bruta em barras e cliques em linha.</p></div><div class="legend"><span><i style="background:#84ceb4"></i>Receita</span><span><i style="background:#245dd8"></i>Cliques</span></div></div><div class="chart">' + pushChart(rows, "Evolução diária da receita e dos cliques de Push") + '</div></article>' +
+          '<article class="panel"><div class="panel-head"><div><h2>Auditoria da origem</h2><p>Os registros abaixo vêm dos relatórios GAM importados.</p></div></div><div class="alerts"><div class="empty">' + (allRows.length ? "Importação validada por relatório, data, moeda e UTM. Clique em uma campanha para ver o histórico diário." : "Nenhum resultado Push foi importado para esta conta.") + '</div></div></article></section>' +
+          '<section class="panel table-panel"><div class="panel-head"><div><h2>Ranking de campanhas Push</h2><p>Agregado por UTM campaign; clique para abrir o detalhe diário.</p></div><div class="table-tools"><input id="search" value="' + escape(state.query) + '" placeholder="Buscar UTM campaign" aria-label="Buscar campanha Push" /></div></div><div class="scroller"><table class="push-table"><thead><tr><th>UTM campaign</th><th>Receita</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>eCPM</th><th>Dias</th></tr></thead><tbody>' + body + '</tbody></table></div></section>' +
+          '<p class="source">Push Notification é uma fonte independente. A visão consolidada soma sua receita bruta à receita bruta do Meta Ads sem alterar os registros Meta.</p></div></div>';
+        bind();
+        if (preserveScroll) requestAnimationFrame(() => window.scrollTo({ top:scrollTop, behavior:"auto" }));
+      }
+
+      function renderCombined(options = {}) {
+        const preserveScroll = Boolean(options.preserveScroll);
+        const scrollTop = preserveScroll ? window.scrollY : 0;
+        const rows = rowsForRange(state.data?.combinedRows || [], state.start, state.end);
+        const spend = rows.reduce((sum,row) => sum + number(row.meta_spend), 0);
+        const meta = rows.reduce((sum,row) => sum + number(row.meta_gross_revenue), 0);
+        const metaNet = rows.reduce((sum,row) => sum + number(row.meta_net_revenue), 0);
+        const push = rows.reduce((sum,row) => sum + number(row.push_gross_revenue), 0);
+        const total = rows.reduce((sum,row) => sum + number(row.total_gross_revenue), 0);
+        const profit = rows.reduce((sum,row) => sum + number(row.meta_profit), 0);
+        const chartRows = rows.map((row,index) => ({ di:index,date:row.date,spend:number(row.meta_spend),rev_adj:number(row.total_gross_revenue),profit:number(row.meta_profit) }));
+        const partial = rows.filter(row => row.status === "parcial").map(row => date(row.date));
+        const notice = partial.length ? '<div class="notice"><b>⚠</b><span><b>Dados parciais:</b> ' + partial.map(escape).join(", ") + '.</span></div>' : "";
+        const range = state.start && state.end ? date(state.start) + " → " + date(state.end) : "Sem período selecionado";
+        const body = rows.map(row => '<tr><td>' + date(row.date) + '</td><td>' + number(row.meta_campaigns) + '</td><td>' + moneyPrecise(row.meta_spend) + '</td><td>' + moneyPrecise(row.meta_gross_revenue) + '</td><td>' + moneyPrecise(row.push_gross_revenue) + '</td><td class="positive">' + moneyPrecise(row.total_gross_revenue) + '</td><td class="' + tone(row.meta_profit) + '">' + moneyPrecise(row.meta_profit) + '</td><td>' + escape(row.status || "final") + '</td></tr>').join("") || '<tr><td colspan="8"><div class="empty">Nenhum dado no período.</div></td></tr>';
+        APP.innerHTML = topbarMarkup() + '<div class="workspace">' + historyMarkup() + '<div class="main">' +
+          '<p class="context"><strong>' + range + '</strong><span class="separator">•</span><span>' + rows.length + ' ' + (rows.length === 1 ? "dia" : "dias") + ' no consolidado</span><span class="separator">•</span><span>' + escape(activeCurrency()) + '</span></p>' + notice +
+          '<div class="channel-note"><b>Visão consolidada</b><span>Soma Meta Ads + Push por dia. O lucro abaixo considera apenas o custo conhecido do Meta Ads; custo Push ainda não informado.</span></div>' +
+          '<section class="metrics metrics-six"><article class="metric"><div class="metric-label">Gasto Meta Ads</div><div class="metric-value">' + money(spend) + '</div><div class="metric-foot">Gasto original da conta</div></article><article class="metric"><div class="metric-label">Receita Meta bruta</div><div class="metric-value positive">' + money(meta) + '</div><div class="metric-foot">Antes do Rev Share</div></article><article class="metric"><div class="metric-label">Receita Push</div><div class="metric-value positive">' + money(push) + '</div><div class="metric-foot">Receita bruta do Ad Exchange</div></article><article class="metric"><div class="metric-label">Receita total bruta</div><div class="metric-value positive">' + money(total) + '</div><div class="metric-foot">Meta + Push</div></article><article class="metric"><div class="metric-label">Receita Meta líquida</div><div class="metric-value positive">' + money(metaNet) + '</div><div class="metric-foot">Após Rev Share Meta</div></article><article class="metric"><div class="metric-label">Lucro Meta</div><div class="metric-value ' + tone(profit) + '">' + money(profit) + '</div><div class="metric-foot">Custo Push ainda não informado</div></article></section>' +
+          '<section class="panel"><div class="panel-head"><div><h2>Evolução consolidada</h2><p>Gasto Meta, receita bruta total e lucro Meta por dia.</p></div><div class="legend"><span><i style="background:#bfd0f7"></i>Gasto Meta</span><span><i style="background:#84ceb4"></i>Receita total</span><span><i style="background:#245dd8"></i>Lucro Meta</span></div></div><div class="chart">' + chart(chartRows, "Evolução diária consolidada de gasto, receita e lucro") + '</div></section>' +
+          '<section class="panel table-panel"><div class="panel-head"><div><h2>Resumo diário consolidado</h2><p>Detalhamento separado e soma final por data.</p></div></div><div class="scroller"><table><thead><tr><th>Data</th><th>Camp. Meta</th><th>Gasto Meta</th><th>Rec. Meta bruta</th><th>Rec. Push</th><th>Total bruto</th><th>Lucro Meta</th><th>Status</th></tr></thead><tbody>' + body + '</tbody></table></div></section>' +
+          '<p class="source">A visão consolidada é somente uma camada de leitura; as tabelas Meta Ads e Push permanecem isoladas e inalteradas.</p></div></div>';
+        bind();
+        if (preserveScroll) requestAnimationFrame(() => window.scrollTo({ top:scrollTop, behavior:"auto" }));
+      }
+
       function render(options = {}) {
         const preserveScroll = Boolean(options.preserveScroll);
         const scrollTop = preserveScroll ? window.scrollY : 0;
+        if (state.sourceView === "push") return renderPush(options);
+        if (state.sourceView === "combined") return renderCombined(options);
         const days = selectedDays();
         const data = state.data;
         const loading = !data;
@@ -1020,6 +1173,15 @@
         document.getElementById("account-selector")?.addEventListener("change", event => {
           if (event.target.value !== state.accountId) void switchAccount(event.target.value);
         });
+        document.getElementById("source-view")?.addEventListener("change", event => {
+          const next = SOURCE_VIEWS.has(event.target.value) ? event.target.value : "meta";
+          if (next === state.sourceView) return;
+          state.sourceView = next;
+          state.query = "";
+          state.modalStack = [];
+          syncHash();
+          void load({ preserveScroll:true });
+        });
         document.querySelector("[data-date-picker-trigger]")?.addEventListener("click", () => {
           if (state.datePickerOpen) closeDatePicker();
           else openDatePicker();
@@ -1074,7 +1236,16 @@
         });
 
         document.querySelectorAll("[data-history-month]").forEach(button => button.addEventListener("click", () => {
-          openMonthModal(button.dataset.historyMonth, button);
+          if (state.sourceView === "meta") {
+            openMonthModal(button.dataset.historyMonth, button);
+            return;
+          }
+          const bounds = monthBounds(button.dataset.historyMonth);
+          state.start = bounds.start;
+          state.end = isoShift(bounds.end, -1);
+          state.preset = "custom";
+          syncHash();
+          void load({ preserveScroll:true });
         }));
 
         document.querySelectorAll("[data-ranking-sort]").forEach(button => button.addEventListener("click", () => {
@@ -1087,6 +1258,7 @@
         }));
 
         document.querySelectorAll("[data-campaign]").forEach(row => row.addEventListener("click", () => openCampaignModal(Number(row.dataset.campaign), row)));
+        document.querySelectorAll("[data-push-campaign]").forEach(row => activateDrillRow(row, () => openPushCampaignModal(Number(row.dataset.pushCampaign), row)));
       }
 
       const currentRoute = () => state.modalStack.at(-1);
@@ -1563,7 +1735,7 @@
         const route = currentRoute();
         document.querySelector("[data-nav-modal-root]")?.remove();
         if (!route) return;
-        const content = route.kind === "month" ? monthModalMarkup(route) : route.kind === "day" ? dayModalMarkup(route) : campaignModalMarkup(route);
+        const content = route.kind === "month" ? monthModalMarkup(route) : route.kind === "day" ? dayModalMarkup(route) : route.kind === "push-campaign" ? pushCampaignModalMarkup(route) : campaignModalMarkup(route);
         const root = document.createElement("div");
         root.className = "modal-root";
         root.setAttribute("data-nav-modal-root", "true");
@@ -1671,6 +1843,48 @@
         });
       }
 
+      async function loadPushCampaignData(id) {
+        const key = state.accountId + ":push:" + id;
+        const cached = state.campaignCache.get(key);
+        if (cached) return await cached;
+        const request = apiAll("v_push_daily?account_id=eq." + state.accountId + "&campaign_id=eq." + id + "&select=" + PUSH_FIELDS + "&order=date.asc")
+          .catch(error => {
+            state.campaignCache.delete(key);
+            throw error;
+          });
+        state.campaignCache.set(key, request);
+        return await request;
+      }
+
+      function pushCampaignModalMarkup(route) {
+        if (!route.rows.length && route.loading) return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO PUSH</p><h2 class="detail-name" id="nav-modal-title">Carregando campanha…</h2></div><div class="modal-loading">Preparando o histórico diário da UTM campaign.</div>';
+        if (!route.rows.length) return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO PUSH</p><h2 class="detail-name" id="nav-modal-title">Campanha indisponível</h2></div><div class="modal-error">Não foi possível carregar os dados desta campanha.</div>';
+        const rows = route.rows.slice().sort((a,b) => a.date.localeCompare(b.date));
+        const metrics = pushTotals(rows);
+        const partial = rows.filter(row => row.is_partial === true || row.is_partial === "true").length;
+        const body = rows.map(row => '<tr><td>' + date(row.date) + '</td><td>' + moneyPrecise(row.gross_revenue) + '</td><td>' + new Intl.NumberFormat("pt-BR").format(number(row.impressions)) + '</td><td>' + new Intl.NumberFormat("pt-BR").format(number(row.clicks)) + '</td><td>' + (number(row.calculated_ctr || (number(row.impressions) ? number(row.clicks) / number(row.impressions) : 0)) * 100).toFixed(2) + '%</td><td>' + moneyPrecise(row.calculated_ecpm || (number(row.impressions) ? number(row.gross_revenue) / number(row.impressions) * 1000 : 0)) + '</td><td>' + (row.is_partial === true || row.is_partial === "true" ? "Parcial" : "Fechado") + '</td></tr>').join("");
+        return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO PUSH</p><h2 class="detail-name" id="nav-modal-title">' + escape(rows[0].label || rows[0].utm_campaign) + '</h2><p class="detail-sub">' + escape(rows[0].utm_campaign) + '</p></div>' +
+          '<p class="modal-period">Histórico completo · ' + date(rows[0].date) + ' → ' + date(rows.at(-1).date) + '</p>' +
+          (partial ? '<p class="notice"><b>⚠</b><span>' + partial + ' registro(s) parcial(is) neste histórico.</span></p>' : '') +
+          '<div class="detail-metrics"><div class="detail-metric"><span>Receita bruta</span><strong class="positive">' + moneyPrecise(metrics.revenue) + '</strong></div><div class="detail-metric"><span>Impressões</span><strong>' + new Intl.NumberFormat("pt-BR").format(metrics.impressions) + '</strong></div><div class="detail-metric"><span>Cliques</span><strong>' + new Intl.NumberFormat("pt-BR").format(metrics.clicks) + '</strong></div><div class="detail-metric"><span>CTR</span><strong>' + pushCtr(metrics).toFixed(2) + '%</strong></div><div class="detail-metric"><span>eCPM médio</span><strong>' + moneyPrecise(pushEcpm(metrics)) + '</strong></div></div>' +
+          '<p class="tax-note">Custo Push ainda não foi importado; lucro e ROI não são calculados nesta visão.</p><div class="scroller" data-route-scroller><table class="push-table"><thead><tr><th>Data</th><th>Receita</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>eCPM</th><th>Status</th></tr></thead><tbody>' + body + '</tbody></table></div>';
+      }
+
+      function openPushCampaignModal(id, opener) {
+        const fallback = (state.data?.pushRows || []).filter(row => Number(row.campaign_id) === Number(id));
+        const route = { kind:"push-campaign", id, rows:fallback.slice(), loading:true, error:null, sort:{ key:"date", direction:"asc" } };
+        pushModalRoute(route, opener);
+        loadPushCampaignData(id).then(rows => {
+          route.rows = rows;
+          route.loading = false;
+          if (currentRoute() === route) renderNavigationModal();
+        }).catch(() => {
+          route.loading = false;
+          route.error = true;
+          if (currentRoute() === route) renderNavigationModal();
+        });
+      }
+
       async function enrichDashboard(first, last, requestId) {
         const account = activeAccount();
         const minimumSpend = number(account?.alert_min_spend || 150);
@@ -1693,6 +1907,40 @@
       }
 
       async function load(options = {}) {
+        if (state.sourceView === "push") {
+          const requestId = ++state.loadId;
+          state.data = null;
+          render(options);
+          try {
+            const pushRows = await apiAll("v_push_daily?account_id=eq." + state.accountId + "&date=gte." + state.start + "&date=lte." + state.end + "&select=" + PUSH_FIELDS + "&order=date.asc,campaign_id.asc");
+            if (requestId !== state.loadId) return;
+            state.data = { pushRows };
+            render({ preserveScroll:Boolean(options.preserveScroll) });
+          } catch {
+            if (requestId !== state.loadId) return;
+            APP.innerHTML = topbarMarkup() + '<section class="message"><h2>Não foi possível atualizar o Push</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';
+            bind();
+            document.getElementById("retry")?.addEventListener("click", () => load({ preserveScroll:true }));
+          }
+          return;
+        }
+        if (state.sourceView === "combined") {
+          const requestId = ++state.loadId;
+          state.data = null;
+          render(options);
+          try {
+            const combinedRows = await apiAll("v_combined_daily?account_id=eq." + state.accountId + "&date=gte." + state.start + "&date=lte." + state.end + "&order=date.asc");
+            if (requestId !== state.loadId) return;
+            state.data = { combinedRows };
+            render({ preserveScroll:Boolean(options.preserveScroll) });
+          } catch {
+            if (requestId !== state.loadId) return;
+            APP.innerHTML = topbarMarkup() + '<section class="message"><h2>Não foi possível atualizar o consolidado</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>';
+            bind();
+            document.getElementById("retry")?.addEventListener("click", () => load({ preserveScroll:true }));
+          }
+          return;
+        }
         const active = selectedDays();
         if (!active.length) {
           ++state.loadId;
@@ -1702,8 +1950,9 @@
           return;
         }
 
-        const first = active[0].di;
-        const last = active.at(-1).di;
+        const metaActive = active.filter(day => day.di !== null && day.di !== undefined && Number.isFinite(Number(day.di)));
+        const first = metaActive[0]?.di;
+        const last = metaActive.at(-1)?.di;
         const requestId = ++state.loadId;
         state.data = null;
         state.insightsUnavailable = false;
@@ -1714,7 +1963,7 @@
           if (requestId !== state.loadId) return;
           state.data = deriveDashboard(daily);
           render({ preserveScroll:Boolean(options.preserveScroll) });
-          void enrichDashboard(first, last, requestId);
+          if (first !== undefined && last !== undefined) void enrichDashboard(first, last, requestId);
         } catch {
           if (requestId !== state.loadId) return;
           APP.innerHTML = `${topbarMarkup()}<section class="message"><h2>Não foi possível atualizar o painel</h2><p>Verifique a conexão com a base de dados e tente novamente.</p><button class="retry" id="retry">Tentar novamente</button></section>`;
@@ -1744,7 +1993,18 @@
         }
         render({ preserveScroll:Boolean(options.preserveScroll) });
         try {
-          state.days = await apiAll(`days?account_id=eq.${state.accountId}&select=di,date,label,badge,account_id&order=di.asc`);
+          const metaDays = await apiAll(`days?account_id=eq.${state.accountId}&select=di,date,label,badge,account_id&order=di.asc`);
+          let combinedDays = [];
+          try {
+            combinedDays = await apiAll("v_combined_daily?account_id=eq." + state.accountId + "&select=date,status&order=date.asc");
+          } catch {
+            combinedDays = [];
+          }
+          const dayMap = new Map(metaDays.map(day => [day.date, day]));
+          combinedDays.forEach(day => {
+            if (!dayMap.has(day.date)) dayMap.set(day.date, { di:null, date:day.date, label:"", badge:day.status === "parcial" ? "parcial" : "final", account_id:state.accountId });
+          });
+          state.days = [...dayMap.values()].sort((a,b) => a.date.localeCompare(b.date));
           ensureInitialPeriod();
           syncHash();
           await load({ preserveScroll:Boolean(options.preserveScroll) });
@@ -1781,7 +2041,9 @@
           void switchAccount(requested.meta_account_id,{ preservePeriod:true, preserveScroll:true });
           return;
         }
-        if (next.range === state.range && next.start === state.start && next.end === state.end) return;
+        const viewChanged = next.sourceView !== state.sourceView;
+        if (viewChanged) state.sourceView = next.sourceView;
+        if (!viewChanged && next.range === state.range && next.start === state.start && next.end === state.end) return;
         state.range = next.range;
         state.start = next.start;
         state.end = next.end;

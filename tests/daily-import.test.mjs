@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildAtomicSql,buildFinancialRow,campaignSuffix,parseGamReport,
-  parseLocalizedNumber,parseMetaCsvReport,parseMetaSnapshot,prepareDailyRows,
+  buildAtomicSql,buildFinancialRow,buildPushAtomicSql,campaignSuffix,parseGamReport,
+  parseLocalizedNumber,parseMetaCsvReport,parseMetaSnapshot,parsePushGamReport,
+  prepareDailyRows,
 } from "../scripts/lib/daily-import.mjs";
 
 const brlAccount = {
@@ -108,4 +109,48 @@ test("currency mismatches and unknown message campaigns are blocked", () => {
   const gam = parseGamReport(['Moeda do relatório,BRL','Período,"ago. 19, 2026"','Chaves-valor,Impressões,a,b,c,Receita','utm_source=facecap_99999,1,0,0,0,1.00'].join("\n"));
   const meta = parseMetaSnapshot({account_id:usdAccount.meta_account_id,currency:"USD",reporting_date:"2026-08-19",campaigns:[]});
   assert.throws(() => prepareDailyRows({account:usdAccount,campaigns:[],days:[],reportingDate:"2026-08-19",badge:"final",gam,meta}),/Moeda GAM/);
+});
+
+test("Push GAM parser keeps UTM campaigns and source metrics separate from Meta", () => {
+  const report = parsePushGamReport([
+    "ID do resultado do relatório,10841400468",
+    "Moeda do relatório,USD",
+    'Gerado em data/hora,"setembro 17, 2026 10:08:08 AM BRT"',
+    'Período,"set. 16, 2026"',
+    "Fuso horário,America/Sao_Paulo",
+    "Filtros,Chaves-valor contém utm_campaign=PH",
+    "",
+    "Chaves-valor,Total de impressões,Impressões não preenchidas,Total de impressões visíveis do Active View,CTR Total,Receita do Ad Exchange,eCPM médio do Ad Exchange,Total de cliques",
+    "utm_campaign=PHES-1,488,0,461,0.3361,27.78,56.93,164",
+    "utm_campaign=PHES-2,342,0,315,0.3333,12.22,35.74,114",
+  ].join("\n"));
+  assert.equal(report.currency,"USD");
+  assert.equal(report.timezone,"America/Sao_Paulo");
+  assert.equal(report.campaigns.length,2);
+  assert.deepEqual(report.campaigns[0],{
+    utm_campaign:"PHES-1",source_key:"utm_campaign=PHES-1",
+    impressions:488,unfilled_impressions:0,viewable_impressions:461,
+    clicks:164,source_ctr:0.3361,gross_revenue:27.78,source_ecpm:56.93,
+  });
+});
+
+test("Push import replaces the complete day snapshot and remains account scoped", () => {
+  const report = {
+    currency:"USD",timezone:"America/Sao_Paulo",reportId:"10841400468",
+    campaigns:[{
+      utm_campaign:"PHES-1",source_key:"utm_campaign=PHES-1",
+      impressions:488,unfilled_impressions:0,viewable_impressions:461,
+      clicks:164,source_ctr:0.3361,gross_revenue:27.78,source_ecpm:56.93,
+    }]
+  };
+  const prepared = buildPushAtomicSql({
+    account:{...usdAccount,tax_rate:0},
+    reportingDate:"2026-09-16",badge:"final",report,
+    provenance:{source_name:"push.csv",source_sha256:"abc",generated_at_iso:"2026-09-17T10:08:08-03:00"}
+  });
+  assert.equal(prepared.totals.gross_revenue,27.78);
+  assert.match(prepared.sql,/delete from public\.push_daily_results/);
+  assert.match(prepared.sql,/account_id='2948780535467215'/);
+  assert.match(prepared.sql,/date '2026-09-16'/);
+  assert.doesNotMatch(prepared.sql,/msgs_results/);
 });
