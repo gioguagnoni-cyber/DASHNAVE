@@ -446,6 +446,7 @@
         sourceView: initialHash.sourceView,
         requestedAccount: initialHash.account,
         days: [],
+        pushDays: [],
         range: initialHash.range,
         start: initialHash.start,
         end: initialHash.end,
@@ -537,6 +538,7 @@
         return { start, end:end.toISOString().slice(0,10), contextStart:isoShift(start, -13) };
       };
       const monthDaysForKey = key => state.days.filter(day => day.date.startsWith(`${key}-`));
+      const historyDaysForView = () => state.sourceView === "push" ? state.pushDays : state.days;
       const monthCoverage = days => {
         const dates = [...new Set(days.map(day => day.date).filter(Boolean))].sort();
         if (!dates.length) return { first:null, last:null, periodDays:0, daysWithData:0, missing:[] };
@@ -603,7 +605,7 @@
           if (state.start > today) state.start = state.end;
           return;
         }
-        const latestData = state.days.at(-1)?.date || today;
+        const latestData = historyDaysForView().at(-1)?.date || today;
         const anchor = latestData < today ? latestData : today;
         state.end = anchor;
         state.start = isoShift(anchor, -state.range + 1);
@@ -861,7 +863,7 @@
 
       function historyMarkup() {
         const months = new Map();
-        state.days.forEach(day => {
+        historyDaysForView().forEach(day => {
           const key = day.date.slice(0, 7);
           const group = months.get(key) || { key, label:monthLabel(`${key}-01`), days:[] };
           group.days.push(day);
@@ -878,9 +880,12 @@
             ${groups.map(month => {
               const coverage = monthCoverage(month.days);
               const dataDetail = coverage.missing.length ? ` · ${coverage.daysWithData} com dados` : "";
+              const dayDetail = state.sourceView === "push"
+                ? `${coverage.daysWithData} ${coverage.daysWithData === 1 ? "dia" : "dias"} com dados`
+                : `${coverage.periodDays} ${coverage.periodDays === 1 ? "dia" : "dias"} no período${dataDetail}`;
               return `<section class="history-month">
                   <button type="button" class="month-btn" data-history-month="${month.key}" aria-label="Abrir o resumo de ${escape(month.label)}">
-                    <span><b>${escape(month.label)}</b><small>${coverage.periodDays} ${coverage.periodDays === 1 ? "dia" : "dias"} no período${dataDetail}</small></span>
+                    <span><b>${escape(month.label)}</b><small>${dayDetail}</small></span>
                     <i aria-hidden="true">›</i>
                   </button>
                 </section>`;
@@ -915,7 +920,7 @@
         ];
       };
       const calendarMarkup = (key, secondary = false) => {
-        const dataDates = new Set(state.days.map(day => day.date));
+        const dataDates = new Set(historyDaysForView().map(day => day.date));
         const today = todayIso();
         const selectedStart = state.draftStart;
         const selectedEnd = state.draftEnd;
@@ -1238,6 +1243,10 @@
         document.querySelectorAll("[data-history-month]").forEach(button => button.addEventListener("click", () => {
           if (state.sourceView === "meta") {
             openMonthModal(button.dataset.historyMonth, button);
+            return;
+          }
+          if (state.sourceView === "push") {
+            openPushMonthModal(button.dataset.historyMonth, button);
             return;
           }
           const bounds = monthBounds(button.dataset.historyMonth);
@@ -1735,7 +1744,12 @@
         const route = currentRoute();
         document.querySelector("[data-nav-modal-root]")?.remove();
         if (!route) return;
-        const content = route.kind === "month" ? monthModalMarkup(route) : route.kind === "day" ? dayModalMarkup(route) : route.kind === "push-campaign" ? pushCampaignModalMarkup(route) : campaignModalMarkup(route);
+        const content = route.kind === "month" ? monthModalMarkup(route)
+          : route.kind === "day" ? dayModalMarkup(route)
+          : route.kind === "push-month" ? pushMonthModalMarkup(route)
+          : route.kind === "push-day" ? pushDayModalMarkup(route)
+          : route.kind === "push-campaign" ? pushCampaignModalMarkup(route)
+          : campaignModalMarkup(route);
         const root = document.createElement("div");
         root.className = "modal-root";
         root.setAttribute("data-nav-modal-root", "true");
@@ -1770,6 +1784,8 @@
         }
         root.querySelectorAll("[data-month-day]").forEach(row => activateDrillRow(row, () => openDayFromMonth(Number(row.dataset.monthDay))));
         root.querySelectorAll("[data-day-campaign]").forEach(row => activateDrillRow(row, () => openCampaignModal(Number(row.dataset.dayCampaign), row, { scope:"1", anchorDi:route.di })));
+        root.querySelectorAll("[data-push-month-day]").forEach(row => activateDrillRow(row, () => openPushDayFromMonth(row.dataset.pushMonthDay)));
+        root.querySelectorAll("[data-push-day-campaign]").forEach(row => activateDrillRow(row, () => openPushCampaignModal(Number(row.dataset.pushDayCampaign), row)));
         root.querySelectorAll("[data-modal-scope]").forEach(button => button.addEventListener("click", () => {
           saveRoutePosition();
           route.scope = button.dataset.modalScope;
@@ -1856,6 +1872,104 @@
         return await request;
       }
 
+      async function loadPushMonthData(key) {
+        const cacheKey = `${state.accountId}:push:${key}`;
+        const cached = state.monthCache.get(cacheKey);
+        if (cached) return await cached;
+        const bounds = monthBounds(key);
+        const request = apiAll(`v_push_daily?account_id=eq.${state.accountId}&date=gte.${bounds.start}&date=lt.${bounds.end}&select=${PUSH_FIELDS}&order=date.asc,campaign_id.asc`)
+          .catch(error => {
+            state.monthCache.delete(cacheKey);
+            throw error;
+          });
+        state.monthCache.set(cacheKey, request);
+        return await request;
+      }
+
+      function pushMonthModalMarkup(route) {
+        if (route.loading) return '<div class="modal-heading"><p class="eyebrow">RESUMO MENSAL PUSH</p><h2 class="detail-name" id="nav-modal-title">Carregando mês…</h2></div><div class="modal-loading">Preparando os resultados de Push.</div>';
+        if (route.error) return `<div class="modal-heading"><p class="eyebrow">RESUMO MENSAL PUSH</p><h2 class="detail-name" id="nav-modal-title">${escape(route.label)}</h2></div><div class="modal-error">Não foi possível carregar este mês. Feche o pop-up e tente novamente.</div>`;
+        const daily = pushDailySummary(route.rows);
+        const coverage = monthCoverage(daily);
+        const byDate = new Map(daily.map(row => [row.date, row]));
+        const days = [];
+        for (let current = coverage.first; current && current <= coverage.last; current = isoShift(current, 1)) {
+          days.push(byDate.get(current) || { date:current, hasData:false });
+        }
+        const sorted = sortRows(days, route.sort);
+        const metrics = pushTotals(route.rows);
+        const missingLabel = coverage.missing.map(date).join(", ");
+        return `<div class="modal-heading">
+            <p class="eyebrow">RESUMO MENSAL PUSH</p>
+            <h2 class="detail-name" id="nav-modal-title">${escape(route.label)}</h2>
+            <p class="detail-sub">${coverage.daysWithData} ${coverage.daysWithData === 1 ? "dia com dados" : "dias com dados"}. Clique em um dia para visualizar as campanhas UTM.</p>
+          </div>
+          ${coverage.missing.length ? `<p class="coverage-warning"><strong>Atenção:</strong> ainda não há dados Push importados para ${missingLabel}.</p>` : ""}
+          <div class="detail-metrics" aria-label="Resumo mensal de Push">
+            <div class="detail-metric"><span>Receita Push</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
+            <div class="detail-metric"><span>Impressões</span><strong>${new Intl.NumberFormat("pt-BR").format(metrics.impressions)}</strong></div>
+            <div class="detail-metric"><span>Cliques</span><strong>${new Intl.NumberFormat("pt-BR").format(metrics.clicks)}</strong></div>
+            <div class="detail-metric"><span>CTR</span><strong>${pushCtr(metrics).toFixed(2)}%</strong></div>
+            <div class="detail-metric"><span>eCPM médio</span><strong>${moneyPrecise(pushEcpm(metrics))}</strong></div>
+          </div>
+          <p class="tax-note">Receita Push bruta; custos Push ainda não foram importados. Lucro e ROI não são calculados nesta visão.</p>
+          <div class="scroller" data-route-scroller><table class="push-table"><thead><tr>
+            ${sortableHead("Data", "date", route.sort)}
+            ${sortableHead("Campanhas UTM", "campaigns", route.sort)}
+            ${sortableHead("Receita", "revenue", route.sort)}
+            ${sortableHead("Impressões", "impressions", route.sort)}
+            ${sortableHead("Cliques", "clicks", route.sort)}
+            ${sortableHead("CTR", "ctr", route.sort)}
+            ${sortableHead("eCPM", "ecpm", route.sort)}
+            ${sortableHead("Status", "is_partial", route.sort)}
+          </tr></thead><tbody>
+            ${sorted.map(row => row.hasData === false
+              ? `<tr class="missing-day-row"><td>${date(row.date)}</td><td colspan="7">Sem dados Push importados</td></tr>`
+              : `<tr class="drill-row" tabindex="0" role="button" data-push-month-day="${row.date}" aria-label="Abrir ${row.campaigns} campanhas Push de ${date(row.date)}">
+                  <td><span class="drill-link">${date(row.date)}</span></td><td>${row.campaigns}</td>
+                  <td class="positive">${moneyPrecise(row.revenue)}</td><td>${new Intl.NumberFormat("pt-BR").format(row.impressions)}</td>
+                  <td>${new Intl.NumberFormat("pt-BR").format(row.clicks)}</td><td>${row.ctr.toFixed(2)}%</td>
+                  <td>${moneyPrecise(row.ecpm)}</td><td>${row.is_partial ? "Parcial" : "Fechado"}</td>
+                </tr>`).join("") || '<tr><td colspan="8"><div class="empty">Nenhum resultado Push encontrado neste mês.</div></td></tr>'}
+          </tbody></table></div>`;
+      }
+
+      function pushDayModalMarkup(route) {
+        const dailyRows = route.rows.filter(row => row.date === route.date);
+        const metrics = pushTotals(dailyRows);
+        const partial = dailyRows.some(row => row.is_partial === true || row.is_partial === "true");
+        const term = (route.search || "").toLocaleLowerCase("pt-BR").trim();
+        const campaigns = sortRows(pushCampaignRanking(dailyRows)
+          .filter(row => !term || `${row.utm_campaign} ${row.label}`.toLocaleLowerCase("pt-BR").includes(term)), route.sort);
+        return `<div class="modal-heading">
+            <p class="eyebrow">CAMPANHAS PUSH DO DIA</p>
+            <h2 class="detail-name" id="nav-modal-title">${date(route.date)}</h2>
+            <p class="detail-sub">${dailyRows.length} ${dailyRows.length === 1 ? "campanha UTM registrada" : "campanhas UTM registradas"} neste dia · ${partial ? "Parcial" : "Fechado"}. Clique em uma campanha para abrir seu histórico.</p>
+          </div>
+          <div class="detail-metrics" aria-label="Resumo de Push de ${date(route.date)}">
+            <div class="detail-metric"><span>Receita Push</span><strong class="positive">${moneyPrecise(metrics.revenue)}</strong></div>
+            <div class="detail-metric"><span>Impressões</span><strong>${new Intl.NumberFormat("pt-BR").format(metrics.impressions)}</strong></div>
+            <div class="detail-metric"><span>Cliques</span><strong>${new Intl.NumberFormat("pt-BR").format(metrics.clicks)}</strong></div>
+            <div class="detail-metric"><span>CTR</span><strong>${pushCtr(metrics).toFixed(2)}%</strong></div>
+            <div class="detail-metric"><span>eCPM médio</span><strong>${moneyPrecise(pushEcpm(metrics))}</strong></div>
+          </div>
+          <div class="table-tools"><input data-day-search value="${escape(route.search || "")}" placeholder="Buscar UTM campaign" aria-label="Buscar campanha Push no dia" /></div>
+          <div class="scroller" data-route-scroller><table class="push-table"><thead><tr>
+            ${sortableHead("UTM campaign", "utm_campaign", route.sort)}
+            ${sortableHead("Receita", "gross_revenue", route.sort)}
+            ${sortableHead("Impressões", "impressions", route.sort)}
+            ${sortableHead("Cliques", "clicks", route.sort)}
+            ${sortableHead("CTR", "ctr", route.sort)}
+            ${sortableHead("eCPM", "ecpm", route.sort)}
+          </tr></thead><tbody>
+            ${campaigns.map(row => `<tr class="drill-row" tabindex="0" role="button" data-push-day-campaign="${row.campaign_id}" aria-label="Abrir histórico de ${escape(row.utm_campaign)}">
+                <td class="campaign">${escape(row.utm_campaign)}</td><td class="positive">${moneyPrecise(row.gross_revenue)}</td>
+                <td>${new Intl.NumberFormat("pt-BR").format(row.impressions)}</td><td>${new Intl.NumberFormat("pt-BR").format(row.clicks)}</td>
+                <td>${row.ctr.toFixed(2)}%</td><td>${moneyPrecise(row.ecpm)}</td>
+              </tr>`).join("") || `<tr><td colspan="6"><div class="empty">Nenhuma campanha corresponde a "${escape(route.search || "")}" neste dia.</div></td></tr>`}
+          </tbody></table></div>`;
+      }
+
       function pushCampaignModalMarkup(route) {
         if (!route.rows.length && route.loading) return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO PUSH</p><h2 class="detail-name" id="nav-modal-title">Carregando campanha…</h2></div><div class="modal-loading">Preparando o histórico diário da UTM campaign.</div>';
         if (!route.rows.length) return '<div class="modal-heading"><p class="eyebrow">DEMONSTRATIVO PUSH</p><h2 class="detail-name" id="nav-modal-title">Campanha indisponível</h2></div><div class="modal-error">Não foi possível carregar os dados desta campanha.</div>';
@@ -1871,7 +1985,8 @@
       }
 
       function openPushCampaignModal(id, opener) {
-        const fallback = (state.data?.pushRows || []).filter(row => Number(row.campaign_id) === Number(id));
+        const parent = currentRoute();
+        const fallback = (parent?.rows || state.data?.pushRows || []).filter(row => Number(row.campaign_id) === Number(id));
         const route = { kind:"push-campaign", id, rows:fallback.slice(), loading:true, error:null, sort:{ key:"date", direction:"asc" } };
         pushModalRoute(route, opener);
         loadPushCampaignData(id).then(rows => {
@@ -1882,6 +1997,41 @@
           route.loading = false;
           route.error = true;
           if (currentRoute() === route) renderNavigationModal();
+        });
+      }
+
+      function openPushMonthModal(key, opener) {
+        closeNavigationModal({ restoreFocus:false });
+        const route = {
+          kind:"push-month",
+          key,
+          label:monthLabel(`${key}-01`),
+          loading:true,
+          error:null,
+          rows:[],
+          sort:{ key:"date", direction:"asc" }
+        };
+        pushModalRoute(route, opener);
+        loadPushMonthData(key).then(rows => {
+          route.rows = rows;
+          route.loading = false;
+          if (currentRoute() === route) renderNavigationModal();
+        }).catch(() => {
+          route.loading = false;
+          route.error = true;
+          if (currentRoute() === route) renderNavigationModal();
+        });
+      }
+
+      function openPushDayFromMonth(targetDate) {
+        const parent = currentRoute();
+        if (parent?.kind !== "push-month" || !parent.rows?.some(row => row.date === targetDate)) return;
+        pushModalRoute({
+          kind:"push-day",
+          date:targetDate,
+          rows:parent.rows,
+          sort:{ key:"gross_revenue", direction:"desc" },
+          search:""
         });
       }
 
@@ -1979,6 +2129,7 @@
         ++state.loadId;
         state.accountId = account.meta_account_id;
         state.days = [];
+        state.pushDays = [];
         state.data = null;
         state.query = "";
         state.datePickerOpen = false;
@@ -1993,18 +2144,25 @@
         }
         render({ preserveScroll:Boolean(options.preserveScroll) });
         try {
-          const metaDays = await apiAll(`days?account_id=eq.${state.accountId}&select=di,date,label,badge,account_id&order=di.asc`);
-          let combinedDays = [];
-          try {
-            combinedDays = await apiAll("v_combined_daily?account_id=eq." + state.accountId + "&select=date,status&order=date.asc");
-          } catch {
-            combinedDays = [];
-          }
+          const [metaDays, combinedDays, pushHistoryRows] = await Promise.all([
+            apiAll(`days?account_id=eq.${state.accountId}&select=di,date,label,badge,account_id&order=di.asc`),
+            apiAll("v_combined_daily?account_id=eq." + state.accountId + "&select=date,status&order=date.asc").catch(() => []),
+            apiAll("v_push_daily?account_id=eq." + state.accountId + "&select=date,is_partial&order=date.asc").catch(() => [])
+          ]);
           const dayMap = new Map(metaDays.map(day => [day.date, day]));
           combinedDays.forEach(day => {
             if (!dayMap.has(day.date)) dayMap.set(day.date, { di:null, date:day.date, label:"", badge:day.status === "parcial" ? "parcial" : "final", account_id:state.accountId });
           });
           state.days = [...dayMap.values()].sort((a,b) => a.date.localeCompare(b.date));
+          const pushDayMap = new Map();
+          pushHistoryRows.forEach(row => {
+            const previous = pushDayMap.get(row.date);
+            pushDayMap.set(row.date, {
+              date:row.date,
+              badge:previous?.badge === "parcial" || row.is_partial === true || row.is_partial === "true" ? "parcial" : "final"
+            });
+          });
+          state.pushDays = [...pushDayMap.values()].sort((a,b) => a.date.localeCompare(b.date));
           ensureInitialPeriod();
           syncHash();
           await load({ preserveScroll:Boolean(options.preserveScroll) });
