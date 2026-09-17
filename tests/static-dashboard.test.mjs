@@ -9,6 +9,7 @@ const multiAccountMigrationUrl = new URL("../supabase/migrations/20260820101159_
 const legacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101201_disable_public_unscoped_dashboard_rpcs.sql", import.meta.url);
 const publicLegacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101202_revoke_public_legacy_dashboard_rpcs.sql", import.meta.url);
 const usdTaxMigrationUrl = new URL("../supabase/migrations/20260820155312_remove_usd_meta_tax.sql", import.meta.url);
+const brlRemovalMigrationUrl = new URL("../supabase/migrations/20260917113000_remove_brl_accounts_preserve_usd.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
@@ -430,6 +431,9 @@ test("accounts isolate currency, dates, queries, caches and advanced RPCs", asyn
   assert.match(source, /p_account_id:state\.accountId/);
   assert.match(source, /state\.monthCache\.clear\(\)/);
   assert.match(source, /state\.campaignCache\.clear\(\)/);
+  assert.match(source, /activeAccount\(\)\?\.currency \|\| "USD"/);
+  assert.match(source, /meta_account_id === "2948780535467215"/);
+  assert.doesNotMatch(source, /meta_account_id === "1417197509632503"/);
 
   state.accounts = [{
     meta_account_id:"usd-account",
@@ -487,4 +491,13 @@ test("the action panel reserves space for impact without overlapping campaign na
   assert.match(source, /\.alert > span:nth-child\(2\) \{ min-width:0; \}/);
   assert.match(source, /\.alert-title \{ display:block; overflow-wrap:anywhere/);
   assert.match(source, /\.impact \{ width:58px;/);
+});
+
+test("live BRL cleanup targets only the three retired accounts and guards USD data", async () => {
+  const migration = await readFile(brlRemovalMigrationUrl, "utf8");
+  for (const accountId of ["1417197509632503", "1569793953960032", "3151385028370668"]) {
+    assert.match(migration, new RegExp(accountId));
+  }
+  assert.match(migration, /delete from public\.dashboard_accounts[\s\S]*?where meta_account_id = any \(retired_accounts\)/);
+  assert.match(migration, /USD account changed during BRL cleanup/);
 });

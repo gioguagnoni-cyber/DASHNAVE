@@ -456,7 +456,7 @@
 
       const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
       const activeAccount = () => state.accounts.find(account => account.meta_account_id === state.accountId) || null;
-      const activeCurrency = () => activeAccount()?.currency || "BRL";
+      const activeCurrency = () => activeAccount()?.currency || "USD";
       const money = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:activeCurrency(), maximumFractionDigits:0 }).format(number(value));
       const moneyPrecise = value => new Intl.NumberFormat("pt-BR", { style:"currency", currency:activeCurrency(), minimumFractionDigits:2, maximumFractionDigits:2 }).format(number(value));
       const ratePct = value => `${number(value) * 100}%`;
@@ -1760,7 +1760,7 @@
         try {
           state.accounts = await apiAll("dashboard_accounts?select=meta_account_id,slug,source_name,display_name,currency,timezone,tax_rate,rev_share_rate,alert_min_spend&order=display_name.asc");
           const selected = state.accounts.find(account => account.slug === state.requestedAccount || account.meta_account_id === state.requestedAccount)
-            || state.accounts.find(account => account.meta_account_id === "1417197509632503")
+            || state.accounts.find(account => account.meta_account_id === "2948780535467215")
             || state.accounts[0];
           if (!selected) throw new Error("Nenhuma conta habilitada.");
           await switchAccount(selected.meta_account_id,{ preservePeriod:true });
