@@ -34,7 +34,8 @@ async function dashboardHelpers() {
         state, calendarDays, comparisonCell, dayCampaignRows, isoShift, modalWindow,
         monthBounds, monthCoverage, monthSummary, periodForPreset, roiForDays, roiForRow,
         sortRows, roiText, totalRoi, totals, campaignName, deriveDashboard,
-        activeCurrency, financialRule, hasAdditionalTax, moneyPrecise, todayIso
+        activeCurrency, financialRule, hasAdditionalTax, moneyPrecise, todayIso,
+        historyDaysForView, historyMarkup, pushDailySummary, pushMonthModalMarkup, pushDayModalMarkup
       };`
   )(fakeDocument, fakeWindow, fakeLocation, fakeHistory);
 }
@@ -111,6 +112,80 @@ test("months open the unified modal directly instead of expanding the sidebar", 
   assert.match(source, /data-month-day/);
   assert.match(source, /function openDayFromMonth/);
   assert.doesNotMatch(source, /data-history-day|expandedMonth|expandedDay/);
+});
+
+test("Push sidebar uses only Push dates while Meta keeps its original history", async () => {
+  const { state, historyDaysForView, historyMarkup } = await dashboardHelpers();
+  state.days = [
+    { date:"2026-08-31" },
+    { date:"2026-09-16" },
+    { date:"2026-09-17" }
+  ];
+  state.pushDays = [
+    { date:"2026-09-16", badge:"final" },
+    { date:"2026-09-17", badge:"parcial" }
+  ];
+
+  state.sourceView = "push";
+  assert.deepEqual(historyDaysForView().map(day => day.date), ["2026-09-16", "2026-09-17"]);
+  const pushHistory = historyMarkup();
+  assert.match(pushHistory, /1 mês/);
+  assert.match(pushHistory, /Setembro de 2026/);
+  assert.match(pushHistory, /2 dias com dados/);
+  assert.doesNotMatch(pushHistory, /Agosto de 2026/);
+
+  state.sourceView = "meta";
+  assert.equal(historyDaysForView(), state.days);
+  const metaHistory = historyMarkup();
+  assert.match(metaHistory, /2 meses/);
+  assert.match(metaHistory, /Agosto de 2026/);
+  assert.match(metaHistory, /Setembro de 2026/);
+});
+
+test("Push month and day drill-down reconcile revenue and status without Meta columns", async () => {
+  const { state, pushDailySummary, pushMonthModalMarkup, pushDayModalMarkup } = await dashboardHelpers();
+  state.accounts = [{ meta_account_id:"2948780535467215", currency:"USD" }];
+  state.accountId = "2948780535467215";
+  const rows = [
+    { date:"2026-09-16", campaign_id:1, utm_campaign:"PHS-1", label:"PHS-1", gross_revenue:60, impressions:1000, clicks:300, is_partial:false },
+    { date:"2026-09-16", campaign_id:2, utm_campaign:"PHS-2", label:"PHS-2", gross_revenue:6.28, impressions:552, clicks:166, is_partial:false },
+    { date:"2026-09-17", campaign_id:1, utm_campaign:"PHS-1", label:"PHS-1", gross_revenue:9.10, impressions:148, clicks:30, is_partial:true }
+  ];
+  const days = pushDailySummary(rows);
+  assert.deepEqual(days.map(day => [day.date, day.revenue, day.impressions, day.clicks, day.is_partial]), [
+    ["2026-09-16", 66.28, 1552, 466, false],
+    ["2026-09-17", 9.1, 148, 30, true]
+  ]);
+  const month = pushMonthModalMarkup({ label:"Setembro de 2026", loading:false, error:null, rows, sort:{ key:"date", direction:"asc" } });
+  assert.match(month, /US\$\s?75,38/);
+  assert.match(month, /1\.700/);
+  assert.match(month, /496/);
+  assert.match(month, /data-push-month-day="2026-09-16"/);
+  assert.match(month, /data-push-month-day="2026-09-17"/);
+  assert.match(month, /Fechado/);
+  assert.match(month, /Parcial/);
+  assert.doesNotMatch(month, /Rec\. Cap|Rec\. Broad|ROI calculado/);
+
+  const day = pushDayModalMarkup({ date:"2026-09-16", rows, search:"", sort:{ key:"gross_revenue", direction:"desc" } });
+  assert.match(day, /US\$\s?66,28/);
+  assert.match(day, /data-push-day-campaign="1"/);
+  assert.match(day, /data-push-day-campaign="2"/);
+  assert.match(day, /PHS-1/);
+  assert.match(day, /PHS-2/);
+  assert.doesNotMatch(day, /US\$\s?9,10/);
+});
+
+test("Push history fetch and modal navigation are account-scoped and leave Meta click routing intact", async () => {
+  const source = await dashboardSource();
+  assert.match(source, /v_push_daily\?account_id=eq\." \+ state\.accountId \+ "&select=date,is_partial&order=date\.asc/);
+  assert.match(source, /v_push_daily\?account_id=eq\.\$\{state\.accountId\}&date=gte\.\$\{bounds\.start\}&date=lt\.\$\{bounds\.end\}/);
+  assert.match(source, /const cacheKey = `\$\{state\.accountId\}:push:\$\{key\}`/);
+  assert.match(source, /if \(state\.sourceView === "meta"\) \{\s*openMonthModal\(button\.dataset\.historyMonth, button\)/);
+  assert.match(source, /if \(state\.sourceView === "push"\) \{\s*openPushMonthModal\(button\.dataset\.historyMonth, button\)/);
+  assert.match(source, /data-push-month-day/);
+  assert.match(source, /openPushDayFromMonth\(row\.dataset\.pushMonthDay\)/);
+  assert.match(source, /data-push-day-campaign/);
+  assert.match(source, /openPushCampaignModal\(Number\(row\.dataset\.pushDayCampaign\), row\)/);
 });
 
 test("monthly coverage follows the latest imported date and exposes data gaps", async () => {
