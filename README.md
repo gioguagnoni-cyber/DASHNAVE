@@ -53,6 +53,23 @@ Next ou Cloudflare Worker.
 Os dados brutos de campanhas não são modificados pelo frontend. As alterações
 analíticas de banco ficam registradas em `supabase/migrations/`.
 
+## Automação de orçamento
+
+`docs/automation.html` é a área administrativa protegida para programar uma
+alteração única de orçamento na conta DIZZ 1 USD. A execução é feita a cada
+minuto pela Edge Function `campaign-scheduler` e sempre segue quatro travas:
+
+- usuário autenticado e vinculado à conta em `automation_members`;
+- conta, campanha e orçamento diário confirmados diretamente no Meta;
+- alvo congelado antes da escrita, impedindo aumento duplicado em retentativas;
+- releitura do orçamento no Meta e registro do valor anterior, solicitado e
+  confirmado em `automation_budget_runs`.
+
+A automação nasce bloqueada (`execution_enabled = false`). Antes de habilitar,
+o projeto precisa de um usuário administrativo, de um token permanente do Meta
+salvo como `META_ACCESS_TOKEN_2948780535467215` e de `META_GRAPH_VERSION`. O
+segredo do worker fica no Vault do Supabase e nunca é publicado no frontend.
+
 ## Validação local
 
 Com Node.js 22 ou superior:
