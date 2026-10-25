@@ -273,6 +273,7 @@
       tr[data-campaign]:hover { background:#f7faff; }
       .campaign { color:#1d4cb8; font-weight:800; }
       .residual-label { display:block; margin-top:2px; color:#a66a13; font-size:9px; font-weight:500; line-height:1.15; white-space:nowrap; }
+      .meta-source-label { display:block; margin-top:2px; color:#6b7280; font-size:9px; font-weight:600; line-height:1.15; white-space:nowrap; }
       .trend { color:#6b7b90; }
       .reco { display:inline-block; border-radius:999px; padding:3px 7px; background:#eff3f8; color:#64748b; font-size:10px; font-weight:800; }
       .reco.escalar { background:var(--green-soft); color:var(--green); }
@@ -400,7 +401,7 @@
     <script>
       const SUPABASE_URL = "https://akffepitbqqqgldxvtlf.supabase.co";
       const SUPABASE_KEY = "sb_publishable_yEPQth9v7-mNr0tPavuQyw_yv9IkJbk";
-      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude,residual,account_id,currency,timezone";
+      const DAILY_FIELDS = "di,date,campaign_id,label,suffix,niche,spend,tax,cost,cap_rev,broad_rev,rev,rev_adj,profit,roi,novos,rpm,status,qualidade,ciclo_vida,saude,residual,account_id,currency,timezone,source_meta_account_id,meta_source_account_name";
       const PUSH_FIELDS = "id,account_id,campaign_id,utm_campaign,label,date,report_id,generated_at,report_timezone,currency,is_partial,impressions,unfilled_impressions,viewable_impressions,clicks,source_ctr,gross_revenue,source_ecpm,calculated_ctr,calculated_ecpm";
       const SOURCE_VIEWS = new Set(["meta","push","combined"]);
       const APP = document.getElementById("app");
@@ -617,7 +618,10 @@
         : state.days.slice(-state.range);
       const isResidual = row => row?.residual === true || row?.residual === "true";
       const residualLabel = '<small class="residual-label">receita residual</small>';
-      const campaignName = row => `${escape(row.label)}${isResidual(row) ? residualLabel : ""}`;
+      const sourceAccountLabel = row => row?.meta_source_account_name
+        ? `<small class="meta-source-label">${escape(row.meta_source_account_name)}</small>`
+        : "";
+      const campaignName = row => `${escape(row.label)}${sourceAccountLabel(row)}${isResidual(row) ? residualLabel : ""}`;
 
       const totals = rows => rows.reduce((all, row) => ({
         spend:all.spend + number(row.spend),
@@ -712,7 +716,11 @@
         const groups = new Map();
         const operationalDaily = daily.filter(row => !isResidual(row));
         operationalDaily.forEach(row => {
-          const group = groups.get(row.campaign_id) || { campaign_id:row.campaign_id, label:row.label, suffix:row.suffix, niche:row.niche, rows:[] };
+          const group = groups.get(row.campaign_id) || {
+            campaign_id:row.campaign_id,label:row.label,suffix:row.suffix,niche:row.niche,
+            source_meta_account_id:row.source_meta_account_id,
+            meta_source_account_name:row.meta_source_account_name,rows:[]
+          };
           group.rows.push(row);
           groups.set(row.campaign_id, group);
         });
@@ -758,6 +766,8 @@
             label:group.label,
             suffix:group.suffix,
             niche:group.niche,
+            source_meta_account_id:group.source_meta_account_id,
+            meta_source_account_name:group.meta_source_account_name,
             spend:all.spend,
             cost:all.cost,
             rev_adj:all.revenue,
@@ -1104,17 +1114,26 @@
         const qualityCounts = number(quality.inconsistentes) + number(quality.suspeitos);
         const alerts = (data?.alerts || []).slice().sort((a, b) => number(a.prioridade) - number(b.prioridade) || number(b.impacto) - number(a.impacto)).slice(0, 7);
         const revenueByCampaign = new Map();
+        const sourceByCampaign = new Map();
         all.filter(row => !isResidual(row)).forEach(row => {
           const entry = revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 };
           entry.cap_rev += number(row.cap_rev);
           entry.broad_rev += number(row.broad_rev);
           entry.rev += number(row.rev);
           revenueByCampaign.set(row.campaign_id, entry);
+          sourceByCampaign.set(row.campaign_id, {
+            source_meta_account_id:row.source_meta_account_id,
+            meta_source_account_name:row.meta_source_account_name
+          });
         });
         const ranking = sortRows(
           (data?.ranking || [])
-            .map(row => ({ ...row, ...(revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 }) }))
-            .filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR"))),
+            .map(row => ({
+              ...row,
+              ...(revenueByCampaign.get(row.campaign_id) || { cap_rev:0, broad_rev:0, rev:0 }),
+              ...(sourceByCampaign.get(row.campaign_id) || {})
+            }))
+            .filter(row => !state.query || `${row.label} ${row.suffix || ""} ${row.niche || ""} ${row.meta_source_account_name || ""}`.toLocaleLowerCase("pt-BR").includes(state.query.toLocaleLowerCase("pt-BR"))),
           state.rankingSort,
           { action:row => row.recomendacao || "acompanhar", trend:row => row.tendencia || "indefinida" }
         );
@@ -1162,7 +1181,7 @@
                 ${ranking.length ? ranking.map(row => {
                   const recommendation = String(row.recomendacao || "acompanhar");
                   const trend = String(row.tendencia || "indefinida");
-                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${escape(row.label)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cap_rev)}</td><td>${moneyPrecise(row.broad_rev)}</td><td>${moneyPrecise(row.rev)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : number(row.rev_adj) > 0 ? null : undefined)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
+                  return `<tr data-campaign="${row.campaign_id}"><td class="campaign">${campaignName(row)}</td><td>${moneyPrecise(row.spend)}</td><td>${moneyPrecise(row.cap_rev)}</td><td>${moneyPrecise(row.broad_rev)}</td><td>${moneyPrecise(row.rev)}</td><td>${moneyPrecise(row.rev_adj)}</td><td class="${tone(row.profit)}">${moneyPrecise(row.profit)}</td><td class="${tone(row.roi)}">${roiText(number(row.cost) ? row.roi : number(row.rev_adj) > 0 ? null : undefined)}</td><td class="trend">${trend === "subindo" ? "↑" : trend === "caindo" ? "↓" : "→"} ${escape(trend)}</td><td><span class="reco ${statusClass(recommendation)}">${escape(recommendation.replaceAll("_", " "))}</span></td></tr>`;
                 }).join("") : '<tr><td colspan="10"><div class="empty">Nenhuma campanha encontrada neste período.</div></td></tr>'}
               </tbody></table></div>
             </section>
@@ -1687,7 +1706,7 @@
         return `<div class="modal-heading">
             <p class="eyebrow">DEMONSTRATIVO DA CAMPANHA</p>
             <h2 class="detail-name" id="nav-modal-title">${escape(campaign.label)}${anchorResidual ? residualLabel : ""}</h2>
-            <p class="detail-sub">${escape(campaign.suffix || campaign.niche || "Campanha de mensagens")}</p>
+            <p class="detail-sub">${escape([campaign.meta_source_account_name,campaign.suffix || campaign.niche || "Campanha de mensagens"].filter(Boolean).join(" · "))}</p>
           </div>
           <div class="modal-scopes" aria-label="Período do demonstrativo">${scopeButtons}</div>
           <p class="modal-period">${escape(selected.label)} · ${selected.range}</p>
