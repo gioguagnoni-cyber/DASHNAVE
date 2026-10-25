@@ -10,6 +10,7 @@ const legacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101201_dis
 const publicLegacyRpcMigrationUrl = new URL("../supabase/migrations/20260820101202_revoke_public_legacy_dashboard_rpcs.sql", import.meta.url);
 const usdTaxMigrationUrl = new URL("../supabase/migrations/20260820155312_remove_usd_meta_tax.sql", import.meta.url);
 const brlRemovalMigrationUrl = new URL("../supabase/migrations/20260917113000_remove_brl_accounts_preserve_usd.sql", import.meta.url);
+const consolidatedMetaMigrationUrl = new URL("../supabase/migrations/20261024120000_consolidate_meta_accounts.sql", import.meta.url);
 
 async function dashboardSource() {
   return readFile(dashboardUrl, "utf8");
@@ -337,7 +338,7 @@ test("daily popup has summary cards, drill-down rows and the complete financial 
 test("residual revenue uses the explicit database flag and stays out of operational recommendations", async () => {
   const source = await dashboardSource();
   const { campaignName, deriveDashboard } = await dashboardHelpers();
-  assert.match(source, /DAILY_FIELDS = ".*residual,account_id,currency,timezone"/);
+  assert.match(source, /DAILY_FIELDS = ".*residual,account_id,currency,timezone,source_meta_account_id,meta_source_account_name"/);
   assert.match(source, /const operationalDaily = daily\.filter\(row => !isResidual\(row\)\)/);
   assert.match(source, /all\.filter\(row => !isResidual\(row\)\)/);
   assert.match(campaignName({ label:"Campanha antiga", residual:true }), /receita residual/);
@@ -533,6 +534,21 @@ test("accounts isolate currency, dates, queries, caches and advanced RPCs", asyn
   state.accountId = "brl-account";
   assert.equal(hasAdditionalTax(), true);
   assert.equal(financialRule(), "Custo = gasto do Meta Ads + 13% de imposto. Receita líquida = GAM − 10% de Rev Share.");
+});
+
+test("the consolidated dashboard exposes each campaign Meta source", async () => {
+  const source = await dashboardSource();
+  const migration = await readFile(consolidatedMetaMigrationUrl, "utf8");
+
+  assert.match(source, /source_meta_account_id,meta_source_account_name/);
+  assert.match(source, /meta-source-label/);
+  assert.match(source, /campaignName\(row\)/);
+  assert.match(migration, /display_name = 'Campanhas Meta'/);
+  assert.match(migration, /create table if not exists public\.meta_source_accounts/);
+  assert.match(migration, /'1136295338740996'.*'DIZZ 2 USD'/s);
+  assert.match(migration, /'1696662518753370'.*'DIZZ 3 USD'/s);
+  assert.match(migration, /source_meta_account_id/);
+  assert.match(migration, /date '2026-10-23'/);
 });
 
 test("database constraints and public RPCs enforce account isolation", async () => {
