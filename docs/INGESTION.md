@@ -1,11 +1,15 @@
-# Lançamento diário multi-conta
+# Lançamento diário consolidado
 
 O importador prepara uma carga atômica e auditável; ele não possui credencial administrativa e não grava diretamente no Supabase.
 
 ## Fontes aceitas
 
 1. Relatório GAM em CSV + relatório Meta Ads em CSV.
-2. Relatório GAM em CSV + snapshot JSON obtido pelo conector Meta Ads.
+2. Relatório GAM em CSV + um ou mais snapshots JSON obtidos pelo conector Meta Ads.
+
+A dashboard possui um único agrupador chamado **Campanhas Meta**. Cada snapshot
+mantém o ID da conta Meta física que originou o gasto. DIZZ 1, DIZZ 2, DIZZ 3 e
+futuras contas não criam dashboards separadas.
 
 O snapshot JSON usa este formato:
 
@@ -41,11 +45,25 @@ node scripts/prepare-daily-import.mjs \
   --out-dir "/caminho/saida"
 ```
 
-Para CSV do Meta, substitua `--meta-snapshot` por `--meta` e, se necessário, informe `--meta-currency USD`.
+Para combinar duas contas Meta na mesma data, use uma lista de snapshots:
+
+```bash
+node scripts/prepare-daily-import.mjs \
+  --gam "/caminho/relatorio-gam.csv" \
+  --meta-snapshots "/caminho/dizz2.json,/caminho/dizz3.json" \
+  --account-id 2948780535467215 \
+  --date 2026-10-24 \
+  --badge final \
+  --out-dir "/caminho/saida"
+```
+
+Para CSV do Meta, substitua `--meta-snapshot` por `--meta`, informe
+`--source-meta-account-id` e, se necessário, `--meta-currency USD`.
 
 ## Travas
 
-- conta identificada pelo ID, nunca apenas pelo nome;
+- agrupador da dashboard e conta Meta de origem identificados por ID, nunca apenas pelo nome;
+- cada conta Meta física precisa estar cadastrada em `meta_source_accounts`;
 - moeda do GAM e do Meta igual à moeda cadastrada da conta;
 - data do snapshot igual à data do lançamento;
 - campanha de mensagens cadastrada ou variação explícita do mesmo titular;
@@ -53,7 +71,7 @@ Para CSV do Meta, substitua `--meta-snapshot` por `--meta` e, se necessário, in
 - receita residual vinculada somente à última campanha ativa do mesmo sufixo e da mesma conta;
 - divergência superior a 1 unidade monetária entre total da conta e soma das campanhas bloqueia a carga;
 - custo e receita calculados com as taxas da conta;
-- SQL transacional, idempotente por conta+data e acompanhado por hashes dos arquivos.
+- SQL transacional, idempotente por agrupador+data e acompanhado pelos IDs das contas de origem e hashes dos arquivos.
 
 ## Aplicação
 
