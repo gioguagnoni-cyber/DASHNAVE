@@ -38,6 +38,20 @@ test("GAM parser preserves cap and broad revenue separately", () => {
   });
 });
 
+test("GAM parser locates metrics by header when a date column is present", () => {
+  const report = [
+    "Moeda do relatório,USD",
+    'Período,"out. 6, 2026"',
+    "Chaves-valor,Data,Total de impressões,Impressões não preenchidas,Total de impressões visíveis do Active View,CTR Total,Receita do Ad Exchange,eCPM médio do Ad Exchange,Total de cliques",
+    "utm_source=facecap_90304,2026-10-06,491,9,436,0.1914,19.44,39.60,94",
+    "utm_source=facebroad_90304,2026-10-06,162,5,152,0.2654,9.62,59.40,43",
+  ].join("\n");
+  const parsed = parseGamReport(report);
+  assert.deepEqual(parsed.bySuffix.get("90304"),{
+    suffix:"90304",cap_rev_cents:1944,broad_rev_cents:962,cap_imp:491,broad_imp:162,
+  });
+});
+
 test("Meta CSV accepts an explicit account ID and reads the currency from the spend column", () => {
   const report = [
     'Nome da campanha,ID da campanha,Valor gasto (USD),Impressões,Início dos relatórios,Encerramento dos relatórios',
@@ -85,6 +99,70 @@ test("same suffix in BRL and USD stays isolated by account", () => {
   const sql = buildAtomicSql(prepared,{source_mode:"meta_connector_snapshot",meta_source_name:"meta.json",gam_source_name:"gam.csv",meta_sha256:"a",gam_sha256:"b"});
   assert.match(sql,/2948780535467215/);
   assert.match(sql,/on conflict \(account_id,date\)/);
+});
+
+test("physical Meta accounts feed the single Campanhas Meta dashboard", () => {
+  const dashboardAccount = {
+    ...usdAccount,display_name:"Campanhas Meta",tax_rate:0,
+  };
+  const campaigns = [{
+    camp_n:372,label:"01-IMG-SPAIN-ES-RELAC-90304-V01",suffix:"90304",
+    meta_camp_id:"dizz2-campaign",ativo_desde:"2026-10-23",ativo_ate:null,
+    grupo_operacao:"01-IMG-SPAIN-ES-RELAC-90304-V01",
+    account_id:dashboardAccount.meta_account_id,
+    source_meta_account_id:"1136295338740996",
+  }];
+  const metaSources = [{
+    meta_account_id:"1136295338740996",
+    dashboard_account_id:dashboardAccount.meta_account_id,
+    source_name:"DIZZ 2 USD",
+  }];
+  const gam = parseGamReport([
+    "Moeda do relatório,USD",'Período,"out. 23, 2026"',"Chaves-valor,Impressões,a,b,c,Receita",
+    "utm_source=facecap_90304,100,0,0,0,20.00",
+  ].join("\n"));
+  const dizz2 = parseMetaSnapshot({
+    account_id:"1136295338740996",currency:"USD",reporting_date:"2026-10-23",account_total_spend:10,
+    campaigns:[{id:"dizz2-campaign",name:"01-IMG-SPAIN-ES-RELAC-90304-V01",objective:"OUTCOME_SALES",spend:10,impressions:500}],
+  });
+  const prepared = prepareDailyRows({
+    account:dashboardAccount,campaigns,days:[],metaSources,
+    reportingDate:"2026-10-23",badge:"final",gam,metas:[dizz2],
+  });
+  assert.equal(prepared.rows[0].carro_n,372);
+  assert.equal(prepared.rows[0].spend,10);
+  assert.deepEqual(prepared.metaSourceIds,["1136295338740996"]);
+  const sql = buildAtomicSql(prepared,{
+    source_mode:"meta_connector_snapshot",meta_source_name:"dizz2.json",
+    meta_source_account_ids:prepared.metaSourceIds,gam_source_name:"gam.csv",
+    meta_sha256:"a",gam_sha256:"b",
+  });
+  assert.match(sql,/source_meta_account_ids/);
+  assert.match(sql,/1136295338740996/);
+});
+
+test("Meta variations with V2/V3 anywhere in the name consolidate into the original suffix owner", () => {
+  const campaigns = [{
+    camp_n:339,label:"106-RELAC-ES-MÉXICO-59937",suffix:"59937",meta_camp_id:"original",
+    ativo_desde:"2026-09-23",ativo_ate:null,grupo_operacao:"MÉXICO",account_id:usdAccount.meta_account_id,
+  }];
+  const gam = parseGamReport([
+    "Moeda do relatório,USD",'Período,"out. 9, 2026"',"Chaves-valor,Impressões,a,b,c,Receita",
+    "utm_source=facecap_59937,100,0,0,0,20.00",
+  ].join("\n"));
+  const meta = parseMetaSnapshot({
+    account_id:usdAccount.meta_account_id,currency:"USD",reporting_date:"2026-10-09",account_total_spend:28.63,
+    campaigns:[
+      {id:"original",name:"106-RELAC-ES-MÉXICO-59937",objective:"OUTCOME_ENGAGEMENT",spend:3.11,impressions:829},
+      {id:"v2",name:"106-V02-RELAC-ES-MÉXICO-59937",objective:"OUTCOME_ENGAGEMENT",spend:3.83,impressions:2120},
+      {id:"v3",name:"106-V03-MSG-RELAC-ES-MÉXICO-59937",objective:"OUTCOME_ENGAGEMENT",spend:21.69,impressions:5681},
+    ],
+  });
+  const prepared = prepareDailyRows({account:usdAccount,campaigns,days:[],reportingDate:"2026-10-09",badge:"parcial",gam,meta});
+  assert.equal(prepared.rows.length,1);
+  assert.equal(prepared.rows[0].carro_n,339);
+  assert.equal(prepared.rows[0].spend,28.63);
+  assert.equal(prepared.rows[0].fb_imp,8630);
 });
 
 test("awareness spend is audited but excluded from the messages dashboard", () => {
