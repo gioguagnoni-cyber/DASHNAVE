@@ -123,6 +123,13 @@ export function parseGamReport(text) {
   const rows = parseCsv(text);
   const headerIndex = rows.findIndex(row => String(row[0] ?? "").trim() === "Chaves-valor");
   if (headerIndex < 0) throw new Error("Cabeçalho 'Chaves-valor' não encontrado no relatório GAM.");
+  const header = rows[headerIndex].map(value => String(value ?? "").trim().toLowerCase());
+  const metricIndex = labels => labels.map(label => header.indexOf(label.toLowerCase())).find(index => index >= 0) ?? -1;
+  const impressionsIndex = metricIndex(["Total de impressões","Impressões","Impressions"]);
+  const revenueIndex = metricIndex(["Receita do Ad Exchange","Receita","Ad Exchange revenue"]);
+  if (impressionsIndex < 0 || revenueIndex < 0) {
+    throw new Error("O relatório GAM não contém as colunas de impressões e receita obrigatórias.");
+  }
   const currency = String(metadataValue(rows, "Moeda do relatório") ?? "").trim().toUpperCase();
   const period = String(metadataValue(rows, "Período") ?? "").trim();
   const generatedAt = String(metadataValue(rows, "Gerado em data/hora") ?? "").trim();
@@ -136,8 +143,8 @@ export function parseGamReport(text) {
     sourceRows += 1;
     const suffix = campaignSuffix(key);
     const current = bySuffix.get(suffix) ?? { suffix, cap_rev_cents:0, broad_rev_cents:0, cap_imp:0, broad_imp:0 };
-    const impressions = Math.trunc(parseLocalizedNumber(row[1] ?? 0));
-    const revenueCents = toCents(row[5] ?? 0);
+    const impressions = Math.trunc(parseLocalizedNumber(row[impressionsIndex] ?? 0));
+    const revenueCents = toCents(row[revenueIndex] ?? 0);
     if (/^utm_source=facecap_/i.test(key)) {
       current.cap_rev_cents += revenueCents;
       current.cap_imp += impressions;
@@ -334,54 +341,74 @@ export function buildFinancialRow({ di, owner, suffix, meta, gam, taxRate, revSh
   };
 }
 
-export function prepareDailyRows({ account, campaigns, days, reportingDate, badge, gam, meta }) {
+export function prepareDailyRows({ account, campaigns, days, reportingDate, badge, gam, meta, metas, metaSources = [] }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportingDate)) throw new Error("Data deve estar em YYYY-MM-DD.");
   if (!account) throw new Error("Conta não cadastrada.");
   if (gam.currency !== account.currency) throw new Error(`Moeda GAM ${gam.currency} diverge da conta ${account.currency}.`);
+  const snapshots = Array.isArray(metas) ? metas : [meta].filter(Boolean);
+  if (!snapshots.length) throw new Error("Nenhum snapshot Meta foi informado.");
+  const sourceMap = new Map(metaSources.map(source => [String(source.meta_account_id),source]));
+  const sourceIds = new Set();
   const [year,month,day] = reportingDate.split("-");
   const monthToken = ["jan.","fev.","mar.","abr.","mai.","jun.","jul.","ago.","set.","out.","nov.","dez."][Number(month)-1];
   if (gam.period && !gam.period.includes(reportingDate) && !(gam.period.toLowerCase().includes(monthToken) && gam.period.includes(String(Number(day))) && gam.period.includes(year))) {
     throw new Error(`Período GAM '${gam.period}' diverge de ${reportingDate}.`);
   }
-  if (!meta.currency) throw new Error("Moeda do Meta não informada; use --meta-currency.");
-  if (meta.currency !== account.currency) throw new Error(`Moeda Meta ${meta.currency} diverge da conta ${account.currency}.`);
-  if (meta.account_id && meta.account_id !== account.meta_account_id) throw new Error(`Conta Meta ${meta.account_id} diverge da conta selecionada ${account.meta_account_id}.`);
-  if (meta.reporting_date && meta.reporting_date !== reportingDate) throw new Error(`Data Meta ${meta.reporting_date} diverge de ${reportingDate}.`);
 
   const registeredById = new Map(campaigns.filter(row => row.meta_camp_id).map(row => [String(row.meta_camp_id),row]));
   const eligibleMeta = new Map();
   const excludedMeta = [];
   const unknownMeta = [];
-  let allCampaignSpendCents = 0;
-  for (const row of meta.campaigns) {
-    if ((row.start && row.start !== reportingDate) || (row.end && row.end !== reportingDate)) {
-      throw new Error(`Período Meta da campanha ${row.name} diverge de ${reportingDate}.`);
+  for (const snapshot of snapshots) {
+    if (!snapshot.currency) throw new Error("Moeda do Meta não informada; use --meta-currency.");
+    if (snapshot.currency !== account.currency) throw new Error(`Moeda Meta ${snapshot.currency} diverge da conta ${account.currency}.`);
+    if (!snapshot.account_id) throw new Error("O snapshot Meta não identifica a conta de origem.");
+    const source = sourceMap.get(String(snapshot.account_id));
+    if (metaSources.length && (!source || source.dashboard_account_id !== account.meta_account_id)) {
+      throw new Error(`Conta Meta de origem ${snapshot.account_id} não pertence ao agrupador ${account.display_name}.`);
     }
-    allCampaignSpendCents += row.spend_cents;
-    const registered = registeredById.get(row.id);
-    if (!registered) {
-      const suffixCandidates = campaigns.filter(campaign => campaign.suffix === row.suffix && activeOn(campaign,reportingDate));
-      const isVariation = suffixCandidates.length && suffixCandidates.some(campaign => normalizeCampaignBase(row.name).startsWith(normalizeCampaignBase(campaign.label)) || normalizeCampaignBase(campaign.label).startsWith(normalizeCampaignBase(row.name)));
-      if (isVariation) {
-        // A V2/V3/V4 or copy contributes to the active owner's suffix total.
-      } else if (!row.suffix || row.objective === "OUTCOME_AWARENESS") {
-        excludedMeta.push({ id:row.id,name:row.name,spend:fromCents(row.spend_cents),reason:"fora do painel de mensagens" });
-        continue;
-      } else {
-        unknownMeta.push({ id:row.id,name:row.name,suffix:row.suffix,spend:fromCents(row.spend_cents) });
-        continue;
+    if (snapshot.reporting_date && snapshot.reporting_date !== reportingDate) throw new Error(`Data Meta ${snapshot.reporting_date} diverge de ${reportingDate}.`);
+    sourceIds.add(String(snapshot.account_id));
+
+    let snapshotCampaignSpendCents = 0;
+    for (const row of snapshot.campaigns) {
+      if ((row.start && row.start !== reportingDate) || (row.end && row.end !== reportingDate)) {
+        throw new Error(`Período Meta da campanha ${row.name} diverge de ${reportingDate}.`);
       }
+      snapshotCampaignSpendCents += row.spend_cents;
+      const registered = registeredById.get(row.id);
+      if (registered?.source_meta_account_id && String(registered.source_meta_account_id) !== String(snapshot.account_id)) {
+        throw new Error(`Campanha ${row.name} está cadastrada na conta Meta ${registered.source_meta_account_id}, não em ${snapshot.account_id}.`);
+      }
+      if (!registered) {
+        const suffixCandidates = campaigns.filter(campaign =>
+          campaign.suffix === row.suffix &&
+          activeOn(campaign,reportingDate) &&
+          (!campaign.source_meta_account_id || String(campaign.source_meta_account_id) === String(snapshot.account_id))
+        );
+        if (suffixCandidates.length) {
+          // Revenue is page/suffix scoped. Every Meta variation (V2/V3/copy/etc.)
+          // therefore contributes to the single active owner of that suffix.
+        } else if (!row.suffix || row.objective === "OUTCOME_AWARENESS") {
+          excludedMeta.push({ id:row.id,name:row.name,source_meta_account_id:snapshot.account_id,spend:fromCents(row.spend_cents),reason:"fora do painel de mensagens" });
+          continue;
+        } else {
+          unknownMeta.push({ id:row.id,name:row.name,source_meta_account_id:snapshot.account_id,suffix:row.suffix,spend:fromCents(row.spend_cents) });
+          continue;
+        }
+      }
+      const current = eligibleMeta.get(row.suffix) ?? { spend_cents:0,impressions:0,campaigns:[],source_meta_account_ids:new Set() };
+      current.spend_cents += row.spend_cents;
+      current.impressions += row.impressions;
+      current.campaigns.push(row.name);
+      current.source_meta_account_ids.add(String(snapshot.account_id));
+      eligibleMeta.set(row.suffix,current);
     }
-    const current = eligibleMeta.get(row.suffix) ?? { spend_cents:0,impressions:0,campaigns:[] };
-    current.spend_cents += row.spend_cents;
-    current.impressions += row.impressions;
-    current.campaigns.push(row.name);
-    eligibleMeta.set(row.suffix,current);
+    if (Math.abs(snapshotCampaignSpendCents - snapshot.account_total_spend_cents) > 100) {
+      throw new Error(`Total Meta por campanha diverge do total da conta ${snapshot.account_id} em ${fromCents(Math.abs(snapshotCampaignSpendCents-snapshot.account_total_spend_cents))} ${account.currency}.`);
+    }
   }
   if (unknownMeta.length) throw new Error(`Campanhas Meta não cadastradas: ${unknownMeta.map(row => `${row.name} [${row.suffix}]`).join(", ")}.`);
-  if (Math.abs(allCampaignSpendCents - meta.account_total_spend_cents) > 100) {
-    throw new Error(`Total Meta por campanha diverge do total da conta em ${fromCents(Math.abs(allCampaignSpendCents-meta.account_total_spend_cents))} ${account.currency}.`);
-  }
 
   const existingDay = days.find(day => day.account_id === account.meta_account_id && day.date === reportingDate);
   const di = existingDay?.di ?? Math.max(-1,...days.map(day => Number(day.di))) + 1;
@@ -418,7 +445,7 @@ export function prepareDailyRows({ account, campaigns, days, reportingDate, badg
     return acc;
   },{spend:0,tax:0,cost:0,cap_rev:0,broad_rev:0,rev:0,rev_adj:0,profit:0,fb_imp:0,adx_imp:0,residual_rows:0});
   totals.roi = totals.cost === 0 ? null : roundHalfUp(totals.profit/totals.cost*100,2);
-  return { account,reportingDate,badge,di,existingDay,rows:preparedRows,totals,excludedMeta };
+  return { account,reportingDate,badge,di,existingDay,rows:preparedRows,totals,excludedMeta,metaSourceIds:[...sourceIds].sort() };
 }
 
 function sqlValue(value) {
@@ -513,7 +540,9 @@ export function buildAtomicSql(prepared, provenance) {
   const columns = ["di","carro_n","suffix","spend","tax","cost","broad_rev","cap_rev","rev","rev_adj","broad_adj","cap_adj","profit","roi","rpm","broad_imp","cap_imp","fb_imp","novos","rpc","status","residual"];
   const values = rows.map(row => `  (${columns.map(column => sqlValue(row[column])).join(",")})`).join(",\n");
   const batchKey = sha256Text(JSON.stringify({account:account.meta_account_id,reportingDate,badge,meta:provenance.meta_sha256,gam:provenance.gam_sha256}));
-  const audit = { excluded_meta:excludedMeta, row_count:rows.length };
+  const sourceMetaAccountIds = provenance.meta_source_account_ids || prepared.metaSourceIds || [];
+  const sourceAccountArray = `array[${sourceMetaAccountIds.map(sqlValue).join(",")}]::text[]`;
+  const audit = { excluded_meta:excludedMeta, row_count:rows.length, source_meta_account_ids:sourceMetaAccountIds };
   return `begin;
 do $guard$
 begin
@@ -536,13 +565,16 @@ ${rows.length ? `insert into public.msgs_results (${columns.join(",")}) values\n
 
 insert into private.import_batches (
   batch_key,account_id,reporting_date,source_mode,is_partial,source_currency,
-  meta_source_name,gam_source_name,meta_sha256,gam_sha256,status,totals,audit,completed_at
+  meta_source_name,gam_source_name,meta_sha256,gam_sha256,status,totals,audit,completed_at,
+  source_meta_account_ids
 ) values (
   ${sqlValue(batchKey)},${sqlValue(account.meta_account_id)},date ${sqlValue(reportingDate)},${sqlValue(provenance.source_mode)},${badge === "parcial"},${sqlValue(account.currency)},
   ${sqlValue(provenance.meta_source_name)},${sqlValue(provenance.gam_source_name)},${sqlValue(provenance.meta_sha256)},${sqlValue(provenance.gam_sha256)},'applied',
-  ${sqlValue(JSON.stringify(totals))}::jsonb,${sqlValue(JSON.stringify(audit))}::jsonb,now()
+  ${sqlValue(JSON.stringify(totals))}::jsonb,${sqlValue(JSON.stringify(audit))}::jsonb,now(),
+  ${sourceAccountArray}
 )
 on conflict (batch_key) do update set
-  status='applied',totals=excluded.totals,audit=excluded.audit,error_text=null,completed_at=now();
+  status='applied',totals=excluded.totals,audit=excluded.audit,error_text=null,
+  source_meta_account_ids=excluded.source_meta_account_ids,completed_at=now();
 commit;`;
 }
